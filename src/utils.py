@@ -1,9 +1,21 @@
 import os
 import csv
+import numpy as np
 import mercantile
 import requests
 from vt2geojson.tools import vt_bytes_to_geojson
 import time
+import psycopg2
+from psycopg2 import sql
+from psycopg2.extras import DictCursor
+
+from PIL import Image
+import equilib
+
+import sys
+
+sys.path.append("./")
+import database_credentials as db
 
 import config
 
@@ -158,7 +170,7 @@ def download_image(image_id, image_folder):
             print(f"no image size {config.image_size} for image {image_id}")
 
 
-def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat):
+def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat, userid, no_pano):
     """Write metadata of all images in tiles to csv
 
     Args:
@@ -180,27 +192,48 @@ def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat
             for row in output:
                 # filter img
                 if ((row[header.index("lon")] > minLon) and (row[header.index("lon")] < maxLon) 
-                    and (row[header.index("lat")] > minLat) and (row[header.index("lat")] < maxLat)
-                    and row[header.index("is_pano")] == False):
+                    and (row[header.index("lat")] > minLat) and (row[header.index("lat")] < maxLat)):
+
+                    if no_pano and row[header.index("is_pano")] == True:
+                        continue
+                    if userid and str(row[header.index("creator_id")]) != userid:
+                        continue
                     
                     csvwriter.writerow(row)
 
 
-def download_images(metadata_path, img_folder):
-    start = time.time()
-    os.makedirs(img_folder, exist_ok=True)
-
+def img_ids_from_csv(csv_path):
     with open(
-        metadata_path, newline=""
+        csv_path, newline=""
     ) as csvfile:
         csvreader = csv.reader(csvfile)
         image_ids = [row[1] for row in csvreader][1:]
-        for i in range(0, len(image_ids)):
-            if i % 100 == 0:
-                print(f"{i} images downloaded")
-            download_image(
-                int(image_ids[i]), img_folder
-            )
+    return image_ids
+
+def img_ids_from_dbtable(db_table):
+    conn = psycopg2.connect(
+        dbname=db.database,
+        user=db.user,
+        host=db.host,
+    )
+
+    with conn.cursor(cursor_factory=DictCursor) as cursor:
+        img_ids = cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table}"))
+        img_ids = cursor.fetchall()
+        img_ids = [img_id[0] for img_id in img_ids]
+    conn.close()
+    return img_ids
+
+def download_images(image_ids, img_folder):
+    start = time.time()
+    os.makedirs(img_folder, exist_ok=True)
+
+    for i in range(0, len(image_ids)):
+        if i % 100 == 0:
+            print(f"{i} images downloaded")
+        download_image(
+            int(image_ids[i]), img_folder
+        )
     print(f"{round((time.time()-start )/ 60)} mins")
 
 
@@ -232,3 +265,33 @@ def write_tiles_within_boundary(csv_path, boundary=None, minLon=None, minLat=Non
     #             csvwriter.writerow([tile.x, tile.y, config.zoom, lat, lon])
 
     return tiles
+
+
+def pano_to_perspective(img_id, input_path, output_path, angle=0.0):
+
+    os.makedirs(output_path, exist_ok=True)
+    equi_img = Image.open(os.path.join(input_path, f"{img_id}.jpg"))
+    equi_img = np.asarray(equi_img)
+    equi_img = np.transpose(equi_img, (2, 0, 1))
+
+    #for i in (angle + 1/4, angle + 3/4): # for sides: 1/8, 9/8
+    for i in (angle + 0, angle + 1): # for sides: 1/2, 3/2
+        rots = {
+            'roll': 0.,
+            'pitch': 0,  # rotate vertical (look up and down)
+            'yaw': i * np.pi,  # rotate horizontal (look left and right) - np.pi = 180 degrees // 1/4 for front, 5/4 for back
+        }
+
+        # Run equi2pers
+        pers_img = equilib.equi2pers(
+            equi=equi_img,
+            rots=rots,
+            height=480, # height, width (int): perspective size
+            width=640, # height, width (int): perspective size
+            fov_x=90.0, # perspective image fov of x-axis
+            mode="bilinear",
+        )
+
+        pers_img = np.transpose(pers_img, (1, 2, 0))
+
+        Image.fromarray(pers_img).save(os.path.join(output_path, f"{img_id}_{i}.png"))

@@ -1,17 +1,15 @@
 drop table if exists {table_name} ;
 
 CREATE TABLE {table_name} (
-    id bigint,
-	tile_id char(20),
-    sequence_id char(50),
+	tile_id VARCHAR,
+    id VARCHAR,
+    sequence_id VARCHAR,
     captured_at bigint,
     compass_angle double precision,
     is_pano bool,
-    creator_id char(20),
+    creator_id VARCHAR,
     lon double precision,
-    lat double precision,
-    class_prob double precision,
-    surface_pred char(20)
+    lat double precision
 
 );
 
