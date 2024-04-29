@@ -69,14 +69,15 @@ CREATE INDEX segmented_ways_idx ON segmented_ways USING GIST(geom);
 drop table if exists {table_name_snapped};
 
  CREATE TABLE {table_name_snapped} AS (
-  select p.id as img_id, n.way_id,
+  select p.id as img_id, n.way_id, n.segment_id,
   ST_ClosestPoint(n.geom, st_transform(p.geom, 3035)) AS geom,
   ST_Distance(n.geom, st_transform(p.geom, 3035)) AS dist
 FROM
   {table_name} AS p
   CROSS JOIN LATERAL (
     SELECT
-       l.geom, l.id as way_id
+      l.geom, l.id as way_id,
+      l.segment_id
     FROM
       segmented_ways AS l
     ORDER BY
@@ -105,10 +106,7 @@ CREATE TABLE {table_name_point_selection} AS
   FROM (
   SELECT
   p.img_id, p.way_id, p.geom as point_geom,
-  ROW_NUMBER() OVER (PARTITION BY p.way_id ORDER BY random()) AS rn
+  ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY random()) AS rn
   FROM  {table_name_snapped} p
-  JOIN segmented_ways w ON p.way_id = w.id
 ) AS sampled
-WHERE rn <= 4;
-
-
+WHERE rn <= 1;
