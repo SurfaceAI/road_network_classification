@@ -34,7 +34,7 @@ def img_selection(data_path, minLon, minLat, maxLon, maxLat, name):
     # TODO: filter according to segmentation: include images on road and pedestrian
     ### aggregate on road segments ###
     aggregate_sample_path = os.path.join(data_path, f"{name}_img_metadata.csv")
-    output_path = os.path.join(data_path, f"{name}_aggregate_snapped.csv")
+    output_path = os.path.join(data_path, f"{name}_snapped.csv")
 
     # Connect to your PostgreSQL database
     conn = psycopg2.connect(
@@ -61,7 +61,7 @@ def img_selection(data_path, minLon, minLat, maxLon, maxLat, name):
 
     with conn.cursor(cursor_factory=DictCursor) as cursor:
         print("sql create table")
-        cursor.execute(sql.SQL(query_create_table.format(table_name=f"{name}_aggregate", 
+        cursor.execute(sql.SQL(query_create_table.format(table_name=f"{name}", 
                                                          absolute_path=absolute_path)))
         conn.commit()
 
@@ -74,8 +74,8 @@ def img_selection(data_path, minLon, minLat, maxLon, maxLat, name):
         cursor.execute(sql.SQL(
                     query_snap.format(
                         bbox0=minLon, bbox1=minLat, bbox2=maxLon, bbox3=maxLat,
-                        table_name=f"{name}_aggregate",
-                        table_name_snapped=f"{name}_aggregate_snapped",
+                        table_name=f"{name}",
+                        table_name_snapped=f"{name}_snapped",
                         table_name_point_selection=f"{name}_point_selection"
                     )
                 ))
