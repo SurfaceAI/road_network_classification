@@ -20,7 +20,8 @@ def img_sample(data_path, minLon, minLat, maxLon, maxLat, name, userid=None, no_
     # # download img metadata
     output_path = os.path.join(data_path, f"{name}_img_metadata.csv")
     utils.query_and_write_img_metadata(pd.DataFrame(tiles), output_path, 
-                                    minLon=minLon, minLat=minLat, maxLon=maxLon, maxLat=maxLat, userid=userid, no_pano=no_pano)
+                                    minLon=minLon, minLat=minLat, maxLon=maxLon, maxLat=maxLat, 
+                                    userid=userid, no_pano=no_pano)
 
     return output_path
 
@@ -108,13 +109,14 @@ def img_download(data_path, csv_path = None, db_table = None):
 
 ### classify images ###
 # use classification_model code
-# result: test_sample-aggregation_sample-20240305_173146.csv
-
 def img_classification(data_path, name, pred_path):
     model_prediction = pd.read_csv(pred_path, dtype={"Image": str}) 
     # the prediction holds a value for each surface and a class probability. Only keep the highest prob.
     idx = model_prediction.groupby("Image")["Prediction"].idxmax()
     model_prediction = model_prediction.loc[idx]   
+    model_prediction.drop("is_in_validation", axis=1, inplace=True)
+    model_prediction["Image"] = model_prediction["Image"].str.split("_").str[0]
+
     model_prediction.to_csv(os.path.join(data_path, "classification_results.csv"), index=False)
 
     pred_path = os.path.join(os.getcwd(),data_path, "classification_results.csv")
