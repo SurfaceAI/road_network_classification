@@ -52,13 +52,13 @@ SELECT
     original.id,
     ST_LineSubstring(
         original.geom, 
-        n.n::float / ceil(ST_Length(original.geom) / 20), 
-        least((n.n + 1)::float / ceil(ST_Length(original.geom) / 20), 1)
+        n.n::float / ceil(ST_Length(original.geom) / {segment_length}), 
+        least((n.n + 1)::float / ceil(ST_Length(original.geom) / {segment_length}), 1)
     ) AS geom
 FROM 
     sample_way_geometry AS original
 CROSS JOIN 
-    generate_series(0, ceil(ST_Length(original.geom) / 20)::integer - 1) AS n(n)
+    generate_series(0, ceil(ST_Length(original.geom) / {segment_length})::integer - 1) AS n(n)
 WHERE 
     ST_Length(original.geom) > 10;
 

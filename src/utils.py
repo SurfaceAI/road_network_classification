@@ -10,9 +10,14 @@ import time
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import DictCursor
+from pathlib import Path
 
 from PIL import Image
 import equilib
+
+from itertools import repeat
+from tqdm import tqdm
+import concurrent.futures
 
 
 import geopandas as gpd
@@ -140,17 +145,18 @@ def get_images_metadata(tile):
     return (header, output)
 
 
-def download_image(image_id, image_folder):
-    """Download image file based on image_id and save to given image_folder
+def download_image(img_id, img_size, img_folder):
+    """Download image file based on img_id and save to given image_folder
 
     Args:
-        image_id (str): ID of image to download
-        image_folder (str): path of folder to save image to
+        img_id (str): ID of image to download
+        img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
+        img_folder (str): path of folder to save image to
     """
     response = requests.get(
-        config.mapillary_graph_url.format(image_id),
+        config.mapillary_graph_url.format(img_id),
         params={
-            "fields": config.image_size,
+            "fields": img_size,
             "access_token": access_tokens[current_token],
         },
     )
@@ -158,20 +164,18 @@ def download_image(image_id, image_folder):
     if response.status_code != 200:
         print(response.status_code)
         print(response.reason)
-        print(f"image_id: {image_id}")
+        print(f"image_id: {img_id}")
     else:
         data = response.json()
-        if config.image_size in data:
-            image_url = data[config.image_size]
+        if img_size in data:
+            image_url = data[img_size]
 
-            # image: save each image with ID as filename to directory by sequence ID
-            image_name = "{}.jpg".format(image_id)
-            image_path = os.path.join(image_folder, image_name)
-            with open(image_path, "wb") as handler:
-                image_data = requests.get(image_url, stream=True).content
+            # image: save each image with ID as filename
+            image_data = requests.get(image_url, stream=True).content
+            with open(os.path.join(img_folder, f"{img_id}.jpg"), "wb") as handler:
                 handler.write(image_data)
         else:
-            print(f"no image size {config.image_size} for image {image_id}")
+            print(f"no image size {img_size} for image {img_id}")
 
 
 def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat, userid, no_pano):
@@ -228,16 +232,28 @@ def img_ids_from_dbtable(db_table):
     conn.close()
     return img_ids
 
-def download_images(image_ids, img_folder):
+def download_images(image_ids, img_folder, img_size, parallel=True):
     start = time.time()
     os.makedirs(img_folder, exist_ok=True)
 
-    for i in range(0, len(image_ids)):
-        if i % 100 == 0:
-            print(f"{i} images downloaded")
-        download_image(
-            int(image_ids[i]), img_folder
-        )
+    if parallel:
+        # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
+        parallel_batch_size = config.parallel_batch_size
+        if (parallel_batch_size is None) | (parallel_batch_size > len(image_ids)):
+            parallel_batch_size = len(image_ids)
+        for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                batch_end = (batch_start+parallel_batch_size 
+                             if batch_start+parallel_batch_size < len(image_ids) 
+                             else len(image_ids))
+                
+                executor.map(download_image, image_ids[batch_start:batch_end], repeat(img_size), repeat(img_folder))
+    else:
+        for i in tqdm(range(0, len(image_ids))):
+            download_image(
+                int(image_ids[i]), img_size, img_folder
+            )
     print(f"{round((time.time()-start )/ 60)} mins")
 
 
@@ -271,29 +287,17 @@ def write_tiles_within_boundary(csv_path, boundary=None, minLon=None, minLat=Non
     return tiles
 
 
-def clean_surface(metadata):
-    metadata["surface_clean"] = metadata["surface"].replace(
-        [
-            "compacted",
-            "gravel",
-            "ground",
-            "fine_gravel",
-            "dirt",
-            "grass",
-            "earth",
-            "sand",
-        ],
-        "unpaved",
-    )
-    metadata["surface_clean"] = metadata["surface_clean"].replace(
-        ["cobblestone", "unhewn_cobblestone"], "sett"
-    )
-    metadata["surface_clean"] = metadata["surface_clean"].replace(
-        "concrete:plates", "concrete"
-    )
-    return metadata
-
-
+def clean_surface(surface):
+    if surface in ["compacted", "gravel", "ground", "fine_gravel", "dirt", "grass", "earth", "sand"]:
+        return "unpaved"
+    elif surface in ["cobblestone", "unhewn_cobblestone"]:
+        return "sett"
+    elif surface in ["concrete:plates", "concrete:lanes"]:
+        return "concrete"
+    elif surface in ["grass_paver"]:
+        return "paving_stones"
+    else:
+        return surface
 
 
 def query_coords(img_id):
@@ -304,6 +308,25 @@ def query_coords(img_id):
     )
     data = response.json()
     return data["geometry"]["coordinates"]
+
+def query_creator_name(image_id):
+    response = requests.get(
+        config.mapillary_graph_url.format(image_id),
+        params={
+            "fields": "creator",
+            "access_token": access_tokens[current_token],
+        },
+    )
+
+    if response.status_code != 200:
+        print(response.status_code)
+        print(response.reason)
+        print(f"image_id: {image_id}")
+        return False
+    else:
+        data = response.json()
+        return (data["creator"]["username"])
+
 
 def query_sequenceid(img_id):
     response = requests.get(
@@ -330,6 +353,14 @@ def query_sequence(sequence_id):
     return [x['id'] for x in data]
 
 
+def query_cangle(img_id):
+    response = requests.get(
+    config.mapillary_graph_url.format(img_id),
+    params={"access_token": access_tokens[current_token],
+            "fields" : "computed_compass_angle"},
+    )
+    data = response.json()
+    return data["computed_compass_angle"]
 
 # compute correct yaw given the the front of the camera
 # TODO % (2 *np.pi) instead?
@@ -383,17 +414,24 @@ def compute_compass_angle(points):
         compass_angle += 180
     return compass_angle
 
+   
 
-def pano_to_persp(in_path, out_path, img_id, cangle, persp_height = 480, persp_width = 640):
+def pano_to_persp(in_path, out_path, img_id, cangle=None, direction_of_travel=None, persp_height = 480, persp_width = 640):
     """ Transform panorama image to two perspective images that face the direction of travel
     Args: in_path (str): path to panorama image
             out_path (str): path to save perspective images
             img_id (str): image id
-            cangle (float): computed camera angle (as given by mapillary)
+            cangle (float): computed camera angle (as given by mapillary). If None, cangle is queried from mapillary
             persp_height (int): height of perspective image
             persp_width (int): width of perspective image
     """    
-    direction_of_travel = compute_direction_of_travel(img_id)
+    os.makedirs(out_path, exist_ok=True)
+
+    if cangle is None:
+        cangle = query_cangle(img_id)
+
+    if direction_of_travel is None:
+        direction_of_travel = compute_direction_of_travel(img_id)
     yaw = compute_yaw(cangle, direction_of_travel)
 
     # rotations
@@ -421,5 +459,39 @@ def pano_to_persp(in_path, out_path, img_id, cangle, persp_height = 480, persp_w
         # transpose back to image format
         pers_img = np.transpose(pers_img, (1, 2, 0))
 
-        Image.fromarray(pers_img).save(os.path.join(out_path, f"{img_id}_{i}_.png"))
+        Image.fromarray(pers_img).save(os.path.join(out_path, f"{img_id}_{i}.jpg"))
 
+
+def format_predictions(model_prediction, pano=False):
+    """Bring model prediction output into a format for further analysis
+
+    Args:
+        model_prediction (pd.DataFrame): model prediction csv output
+        pano (bool, optional): are images panorama images with `Image`indication direction (_0 and _1)?. Defaults to True.
+
+    Returns:
+        pd.DataFrame: formatted model predictions
+    """
+
+    type_prediction = model_prediction.loc[model_prediction["Level"] == "type"].copy()
+    # the prediction holds a value for each surface and a class probability. Only keep the highest prob.
+    idx = type_prediction.groupby("Image")["Prediction"].idxmax()
+    type_prediction = type_prediction.loc[idx]   
+    type_prediction.rename(columns={"Prediction": "type_class_prob", "Level_0": "type_pred"}, inplace=True)
+
+    quality_prediction = model_prediction.loc[model_prediction["Level"] == "quality"].copy()
+    quality_prediction.rename(columns={"Prediction": "quality_pred", "Level_1": "quality_pred_label"}, inplace=True)
+
+    pred = type_prediction.set_index("Image").join(quality_prediction.set_index("Image"), 
+                                                   lsuffix="_type", rsuffix="_quality")
+    pred = pred[["type_pred", "type_class_prob", "quality_pred", "quality_pred_label"]]
+    pred.reset_index(inplace=True)
+
+    if pano:
+        img_ids = pred["Image"].str.split("_").str[0:2]
+        pred.insert(0, "img_id", [img_id[0] for img_id in img_ids])
+        pred.insert(1, "direction", [int(float(img_id[1])) for img_id in img_ids])
+        pred.drop(columns=["Image"], inplace=True)
+    if not pano:
+        pred.rename(columns={"Image": "img_id"}, inplace=True)
+    return (pred)

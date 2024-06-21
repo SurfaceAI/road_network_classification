@@ -19,6 +19,7 @@ def img_sample(data_path, minLon, minLat, maxLon, maxLat, name, userid=None, no_
     tiles = utils.write_tiles_within_boundary("tiles.csv", minLon=minLon, minLat=minLat, maxLon=maxLon, maxLat=maxLat)
     # # download img metadata
     output_path = os.path.join(data_path, f"{name}_img_metadata.csv")
+    os.makedirs(data_path, exist_ok=True)
     utils.query_and_write_img_metadata(pd.DataFrame(tiles), output_path, 
                                     minLon=minLon, minLat=minLat, maxLon=maxLon, maxLat=maxLat, 
                                     userid=userid, no_pano=no_pano)
@@ -26,7 +27,7 @@ def img_sample(data_path, minLon, minLat, maxLon, maxLat, name, userid=None, no_
     return output_path
 
 
-def img_selection(data_path, minLon, minLat, maxLon, maxLat, name):
+def img_selection(data_path, minLon, minLat, maxLon, maxLat, name, segment_length=20):
     ## TODO:
     # filter first - then download filtered imgs
     # filter by segment
@@ -76,7 +77,8 @@ def img_selection(data_path, minLon, minLat, maxLon, maxLat, name):
                         bbox0=minLon, bbox1=minLat, bbox2=maxLon, bbox3=maxLat,
                         table_name=f"{name}",
                         table_name_snapped=f"{name}_snapped",
-                        table_name_point_selection=f"{name}_point_selection"
+                        table_name_point_selection=f"{name}_point_selection",
+                        segment_length = segment_length,
                     )
                 ))
         conn.commit()
@@ -98,29 +100,25 @@ def img_selection(data_path, minLon, minLat, maxLon, maxLat, name):
 
 
 
-def img_download(data_path, csv_path = None, db_table = None):
+def img_download(data_path, img_size, dest_folder_name = "imgs", csv_path = None, db_table = None, 
+                 parallel=True):
 
     if csv_path:
         img_ids = utils.img_ids_from_csv(csv_path)
     elif db_table:
         img_ids = utils.img_ids_from_dbtable(db_table)
 
-    utils.download_images(img_ids, os.path.join(data_path, "imgs"))
+    utils.download_images(img_ids, os.path.join(data_path, dest_folder_name), img_size=img_size, 
+                          parallel=parallel)
 
 ### classify images ###
 # use classification_model code
 def img_classification(data_path, name, pred_path):
-    model_prediction = pd.read_csv(pred_path, dtype={"Image": str}) 
-    # the prediction holds a value for each surface and a class probability. Only keep the highest prob.
-    idx = model_prediction.groupby("Image")["Prediction"].idxmax()
-    model_prediction = model_prediction.loc[idx]   
-    model_prediction.drop("is_in_validation", axis=1, inplace=True)
-    model_prediction["Image"] = model_prediction["Image"].str.split("_").str[0]
-
-    model_prediction.to_csv(os.path.join(data_path, "classification_results.csv"), index=False)
-
-    pred_path = os.path.join(os.getcwd(),data_path, "classification_results.csv")
+    pred = utils.format_predictions(pd.read_csv(pred_path, dtype={"Image": str}), pano=True)
+    pred.to_csv(os.path.join(data_path, "classification_results.csv"), index=False)
+    
     # update table with classification results
+    csv_path = os.path.join(os.getcwd(),data_path, "classification_results.csv")
     conn = psycopg2.connect(
         dbname=db.database,
         user=db.user,
@@ -132,8 +130,8 @@ def img_classification(data_path, name, pred_path):
 
     with conn.cursor(cursor_factory=DictCursor) as cursor:
         cursor.execute(sql.SQL(query_classification.format(
-            table_name_point_selection=f"{name}_point_selection",
-            csv_path = pred_path)))
+            table_name_point_selection=f"{name}_snapped",
+            csv_path = csv_path)))
         conn.commit()
     conn.close()
 
@@ -150,7 +148,9 @@ def aggregate_by_road_segment(name):
         query_label = file.read()
 
     with conn.cursor(cursor_factory=DictCursor) as cursor:
-        cursor.execute(sql.SQL(query_label.format(table_name_point_selection=f"{name}_point_selection")))
+        cursor.execute(sql.SQL(query_label.format(
+                               table_name_point_selection=f"{name}_snapped", 
+                               table_name_way_selection=f"{name}_way_selection")))
         conn.commit()
     conn.close()
 
@@ -180,8 +180,8 @@ if __name__ == "__main__":
     minLat=52.4957929
     maxLon=13.4085637
     maxLat=52.4991356
-    name = "s1"
-    pred_path = "test_sample-aggregation_sample-20240305_173146.csv"
+    #name = "s1"
+    #pred_path = "test_sample-aggregation_sample-20240305_173146.csv"
 
     # minLon=13.4097172387
     # minLat=52.49105842
@@ -190,12 +190,21 @@ if __name__ == "__main__":
     # name = "s2"
     # pred_path = "test_sample-s2-20240415_101331.csv"
 
-    data_path = os.path.join(data_path, name)
-    pred_path = os.path.join(data_path, pred_path)
+    name = "weser_aue"
+    # run 2
+    #pred_path = "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/weseraue/prediction/effnet_surface_quality_prediction-weseraue_imgs_2048-20240611_105730.csv"
+    
+    run = "run12"
+    pred_path = "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/weseraue/prediction/effnet_surface_quality_prediction-weseraue_imgs_2048-20240617_180008.csv"
+    data_path = os.path.join(data_path, name, run)
 
     #img_sample(data_path, minLon, minLat, maxLon, maxLat, name)
-    img_selection(data_path, minLon, minLat, maxLon, maxLat, name)
+    #img_selection(data_path, minLon, minLat, maxLon, maxLat, name)
     #img_download(data_path, db_table=f"{name}_point_selection")
+    # TODO: crop pano images to perspective images
     img_classification(data_path, name, pred_path)
     aggregate_by_road_segment(name)
+
+    # pgsql2shp -f "weser_aue_ways_pred.shp" osmGermany "select * from weser_aue_way_selection"
+    
     #roadtype_seperation()
