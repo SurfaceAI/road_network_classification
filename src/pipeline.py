@@ -8,12 +8,14 @@ from psycopg2 import sql
 from psycopg2.extras import DictCursor
 
 import utils 
+import config
+import constants as const
 
 sys.path.append("./")
 import database_credentials as db
 
 
-def img_sample(data_path, minLon, minLat, maxLon, maxLat, name, userid=None, no_pano=True):
+def query_img_meta_in_bbox(data_path, minLon, minLat, maxLon, maxLat, name, userid=None, no_pano=True):
     # ### download mapillary img metadata ###
     # # get all relevant tile ids
     tiles = utils.write_tiles_within_boundary("tiles.csv", minLon=minLon, minLat=minLat, maxLon=maxLon, maxLat=maxLat)
@@ -27,67 +29,70 @@ def img_sample(data_path, minLon, minLat, maxLon, maxLat, name, userid=None, no_
     return output_path
 
 
-def img_selection(data_path, minLon, minLat, maxLon, maxLat, name, segment_length=20):
-    ## TODO:
-    # filter first - then download filtered imgs
-    # filter by segment
 
-    # TODO: filter according to segmentation: include images on road and pedestrian
-    ### aggregate on road segments ###
+
+
+def img_to_db(dbname, data_path, name):
+    print("sql create img table")
+
     aggregate_sample_path = os.path.join(data_path, f"{name}_img_metadata.csv")
-    output_path = os.path.join(data_path, f"{name}_snapped.csv")
-
-    # Connect to your PostgreSQL database
-    conn = psycopg2.connect(
-        dbname=db.database,
-        user=db.user,
-        host=db.host,
-    )
-
-    temp_path = os.path.join(data_path, "temp.csv")
+    temp_path = os.path.join(os.getcwd(), data_path, "temp.csv")
     image_selection = pd.read_csv(aggregate_sample_path)
     #image_selection.drop("date", axis=1)
     image_selection.to_csv(temp_path, index=False)
-
-    absolute_path = os.path.join(os.getcwd(), temp_path)
-    output_path = os.path.join(os.getcwd(), output_path)
-
-    # create table with sample data points
-    with open("src/sql/01_sample_to_sql.sql", "r") as file:
-        query_create_table = file.read()
-
-    with open("src/sql/02_intersect_img_ways.sql", "r") as file:
-        query_snap = file.read()
+    
+    utils.execute_sql_query(dbname, const.SQL_IMGS_TO_DB, 
+                      {"table_name": f"{name}", 
+                       "absolute_path": temp_path})
+    os.remove(temp_path)
 
 
-    with conn.cursor(cursor_factory=DictCursor) as cursor:
-        print("sql create table")
-        cursor.execute(sql.SQL(query_create_table.format(table_name=f"{name}", 
-                                                         absolute_path=absolute_path)))
-        conn.commit()
+def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, 
+                          segment_length=20, custom=False, 
+                          custom_edge_geom_table=False, orig_way_id_name="id"):
 
-        os.remove(absolute_path)
+    print("prepare lines")
+    if not custom:
+        query_file = const.SQL_LINE_SEGMENTS
+        edge_table_name = ""
+        
+    else:
+        query_file = const.SQL_LINE_SEGMENTS_CUST
+        edge_table_name = custom_edge_geom_table
 
-
-    # snap points on road segments
-    # TODO: do we actually need to snap or is ref. to closest geom enough?
-        print("sql snap points")
-        cursor.execute(sql.SQL(
-                    query_snap.format(
-                        bbox0=minLon, bbox1=minLat, bbox2=maxLon, bbox3=maxLat,
-                        table_name=f"{name}",
-                        table_name_snapped=f"{name}_snapped",
-                        table_name_point_selection=f"{name}_point_selection",
-                        segment_length = segment_length,
-                    )
-                ))
-        conn.commit()
-
+    utils.execute_sql_query(dbname, query_file, 
+                      {"bbox0": minLon, "bbox1": minLat, "bbox2": maxLon, "bbox3": maxLat,
+                       "table_name": f"{name}", 
+                       "table_name_snapped": f"{name}_snapped",
+                       "table_name_point_selection": f"{name}_point_selection",
+                       "table_name_way_selection": f"{name}_way_selection",
+                       "segment_length": segment_length,
+                       "edge_table_name": edge_table_name,
+                       "old_way_id_name": orig_way_id_name
+                       })
     # export table to csv
     #    cursor.execute(sql.SQL(f"copy (select * from {table_name_snapped}) TO '{output_path}' DELIMITER ',' CSV HEADER;"))
     #    conn.commit()
-    conn.close()
 
+def img_selection(dbname, name):
+    print("select images")
+
+    utils.execute_sql_query(dbname, const.SQL_IMG_SELECTION, 
+                    {"table_name": f"{name}", 
+                    "table_name_snapped": f"{name}_snapped",
+                    "table_name_point_selection": f"{name}_point_selection"})
+
+
+def match_img_to_roads(dbname, name, custom=False):
+    print("match imgs to roads")
+
+    query_file = const.SQL_MATCH_IMG_ROADS if not custom else const.SQL_MATCH_IMG_ROADS_CUST
+
+    # TODO: do we actually need to snap or is ref. to closest geom enough?
+    utils.execute_sql_query(dbname, query_file, 
+                      {"table_name": f"{name}", 
+                       "table_name_snapped": f"{name}_snapped",
+                       "table_name_point_selection": f"{name}_point_selection"})
 
     # clean table bc trailing whitespace is stored during export 
     # TODO: better way while exporting from SQL?
@@ -99,112 +104,82 @@ def img_selection(data_path, minLon, minLat, maxLon, maxLat, name, segment_lengt
 
 
 
-
-def img_download(data_path, img_size, dest_folder_name = "imgs", csv_path = None, db_table = None, 
-                 parallel=True):
+def img_download(data_path,run, img_size, dest_folder_name = "imgs", csv_path = None, db_table = None, 
+                 parallel=True, custom=False):
+    dbname = db.database if not custom else getattr(db, custom)
 
     if csv_path:
         img_ids = utils.img_ids_from_csv(csv_path)
     elif db_table:
-        img_ids = utils.img_ids_from_dbtable(db_table)
+        img_ids = utils.img_ids_from_dbtable(db_table, dbname)
 
-    utils.download_images(img_ids, os.path.join(data_path, dest_folder_name), img_size=img_size, 
+    print("Downloading images")
+    utils.download_images(img_ids, os.path.join(data_path, run, dest_folder_name), img_size=img_size, 
                           parallel=parallel)
 
 ### classify images ###
 # use classification_model code
-def img_classification(data_path, name, pred_path):
-    pred = utils.format_predictions(pd.read_csv(pred_path, dtype={"Image": str}), pano=True)
-    pred.to_csv(os.path.join(data_path, "classification_results.csv"), index=False)
-    
-    # update table with classification results
-    csv_path = os.path.join(os.getcwd(),data_path, "classification_results.csv")
-    conn = psycopg2.connect(
-        dbname=db.database,
-        user=db.user,
-        host=db.host,
-    )
+def img_classification(dbname, data_path, name, pred_path, run, pano=False, road_scenery_path=False):
+    print("add classification results to db")
+    pred = utils.format_predictions(pd.read_csv(pred_path, dtype={"Image": str}), pano=pano)
+    csv_path = os.path.join(os.getcwd(),data_path,  name, run, "classification_results.csv")
+    pred.to_csv(csv_path, index=False)
 
-    with open("src/sql/03_classification_res.sql", "r") as file:
-        query_classification = file.read()
+    query_file = const.SQL_JOIN_MODEL_PRED_DIR if pano else const.SQL_JOIN_MODEL_PRED
 
-    with conn.cursor(cursor_factory=DictCursor) as cursor:
-        cursor.execute(sql.SQL(query_classification.format(
-            table_name_point_selection=f"{name}_snapped",
-            csv_path = csv_path)))
-        conn.commit()
-    conn.close()
+    utils.execute_sql_query(dbname, query_file, 
+                    {"table_name_snapped": f"{name}_snapped",
+                    "csv_path": csv_path,
+                    "pano": pano})
+
+    if road_scenery_path:
+        pred_scene = utils.format_scenery_predictions(pd.read_csv(road_scenery_path, dtype={"Image": str}), pano=pano)
+        csv_path_scenery = os.path.join(os.getcwd(),data_path,  name, run, "scenery_class_results.csv")
+        pred_scene.to_csv(csv_path_scenery, index=False)
+
+        utils.execute_sql_query(dbname, const.SQL_JOIN_SCENERY_PRED, 
+                    {"table_name_snapped": f"{name}_snapped",
+                    "csv_path": csv_path_scenery,
+                    "pano": pano})
 
 
-def aggregate_by_road_segment(name):
-    # Connect to your PostgreSQL database
-    conn = psycopg2.connect(
-        dbname=db.database,
-        user=db.user,
-        host=db.host,
-    )
+def aggregate_by_road_segment(dbname, name):
+    print("aggregate by road segment")
 
-    with open("src/sql/04_label_segment.sql", "r") as file:
-        query_label = file.read()
+    utils.execute_sql_query(dbname, const.SQL_AGGREGATE_ON_ROADS, 
+                    {"table_name_point_selection": f"{name}_snapped",
+                    "table_name_way_selection": f"{name}_way_selection"})
 
-    with conn.cursor(cursor_factory=DictCursor) as cursor:
-        cursor.execute(sql.SQL(query_label.format(
-                               table_name_point_selection=f"{name}_snapped", 
-                               table_name_way_selection=f"{name}_way_selection")))
-        conn.commit()
-    conn.close()
 
 
 def roadtype_seperation():
-    # Connect to your PostgreSQL database
-    conn = psycopg2.connect(
-        dbname=db.database,
-        user=db.user,
-        host=db.host,
-    )
-
-    with open("src/sql/05_roadtypes.sql", "r") as file:
-        query_geom = file.read()
-
-    with conn.cursor(cursor_factory=DictCursor) as cursor:
-        cursor.execute(sql.SQL(query_geom))
-        conn.commit()
-    conn.close()
+        utils.execute_sql_query(dbname, "src/sql/roadtypes.sql")
 
 
 if __name__ == "__main__":
 
-    data_path = "data"
-    ### USER INPUT: define bounding box ###
-    minLon=13.4029690
-    minLat=52.4957929
-    maxLon=13.4085637
-    maxLat=52.4991356
-    #name = "s1"
-    #pred_path = "test_sample-aggregation_sample-20240305_173146.csv"
-
-    # minLon=13.4097172387
-    # minLat=52.49105842
-    # maxLon=13.4207674991
-    # maxLat=52.4954385756
-    # name = "s2"
-    # pred_path = "test_sample-s2-20240415_101331.csv"
-
-    name = "weser_aue"
-    # run 2
-    #pred_path = "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/weseraue/prediction/effnet_surface_quality_prediction-weseraue_imgs_2048-20240611_105730.csv"
+    cg = config.berlin_prio_vset
+    data_path = os.path.join(cg["data_root"], cg["name"])
     
-    run = "run12"
-    pred_path = "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/weseraue/prediction/effnet_surface_quality_prediction-weseraue_imgs_2048-20240617_180008.csv"
-    data_path = os.path.join(data_path, name, run)
-
-    #img_sample(data_path, minLon, minLat, maxLon, maxLat, name)
-    #img_selection(data_path, minLon, minLat, maxLon, maxLat, name)
-    #img_download(data_path, db_table=f"{name}_point_selection")
+    
+    # query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
+    
+    
+    dbname = db.database if not cg["database"] else getattr(db, cg["database"])
+    
+    #img_to_db(dbname, data_path, cg["name"])
+    #prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
+    #             custom=cg["database"], custom_edge_geom_table=cg["custom_edge_geom_table"], 
+    #             orig_way_id_name=cg["orig_way_id_name"])
+    # match_img_to_roads(cg["name"], custom=cg["database"])
+    img_selection(dbname, cg["name"])
+    # img_download(data_path, cg["run"], db_table=f"{cg["name"]}_point_selection",custom=cg["database"], img_size=cg["img_size"])
+    
     # TODO: crop pano images to perspective images
-    img_classification(data_path, name, pred_path)
-    aggregate_by_road_segment(name)
+    # img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"],
+    #                pano=False, road_scenery_path=cg["road_scenery_pred_path"])
+    # aggregate_by_road_segment(dbname, cg["name"])
 
     # pgsql2shp -f "weser_aue_ways_pred.shp" osmGermany "select * from weser_aue_way_selection"
-    
-    #roadtype_seperation()
+    # pgsql2shp -f "berlin_ways_pred.shp" berlinPrio "select * from berlin_prio_vset_way_selection"
+

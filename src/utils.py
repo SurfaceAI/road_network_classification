@@ -188,12 +188,8 @@ def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat
     # write metadata of all potential images to csv
     with open(out_path, "w", newline="") as csvfile:
         csvwriter = csv.writer(csvfile)
-        for i in range(0, len(tiles)):
-            if i % 10 == 0:
-                print(f"{i} tiles of {len(tiles)}")
-            tile = tiles.iloc[
-                i,
-            ]
+        for i in tqdm(range(0, len(tiles))):
+            tile = tiles.iloc[i,]
             header, output = get_images_metadata(tile)
             if i == 0:
                 csvwriter.writerow(header)
@@ -218,9 +214,9 @@ def img_ids_from_csv(csv_path):
         image_ids = [row[1] for row in csvreader][1:]
     return image_ids
 
-def img_ids_from_dbtable(db_table):
+def img_ids_from_dbtable(db_table, dbname):
     conn = psycopg2.connect(
-        dbname=db.database,
+        dbname=dbname,
         user=db.user,
         host=db.host,
     )
@@ -239,7 +235,7 @@ def download_images(image_ids, img_folder, img_size, parallel=True):
     if parallel:
         # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
         parallel_batch_size = config.parallel_batch_size
-        if (parallel_batch_size is None) | (parallel_batch_size > len(image_ids)):
+        if (parallel_batch_size is None) or (parallel_batch_size > len(image_ids)):
             parallel_batch_size = len(image_ids)
         for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
 
@@ -462,7 +458,7 @@ def pano_to_persp(in_path, out_path, img_id, cangle=None, direction_of_travel=No
         Image.fromarray(pers_img).save(os.path.join(out_path, f"{img_id}_{i}.jpg"))
 
 
-def format_predictions(model_prediction, pano=False):
+def format_predictions(model_prediction, pano):
     """Bring model prediction output into a format for further analysis
 
     Args:
@@ -495,3 +491,46 @@ def format_predictions(model_prediction, pano=False):
     if not pano:
         pred.rename(columns={"Image": "img_id"}, inplace=True)
     return (pred)
+
+def format_scenery_predictions(model_prediction, pano):
+    """Bring model scenery prediction output into a format for further analysis
+
+    Args:
+        model_prediction (pd.DataFrame): model prediction csv output
+        pano (bool, optional): are images panorama images with `Image`indication direction (_0 and _1)?. Defaults to True.
+
+    Returns:
+        pd.DataFrame: formatted model predictions
+    """
+
+    # the prediction holds a value for each surface and a class probability. Only keep the highest prob.
+    idx = model_prediction.groupby("Image")["Prediction"].idxmax()
+    model_prediction = model_prediction.loc[idx]   
+    model_prediction.rename(columns={"Prediction": "type_class_prob", "Level_0": "scenery_pred"}, inplace=True)
+
+    model_prediction = model_prediction[["Image", "scenery_pred"]]
+
+    if pano:
+        img_ids = model_prediction["Image"].str.split("_").str[0:2]
+        model_prediction.insert(0, "img_id", [img_id[0] for img_id in img_ids])
+        model_prediction.insert(1, "direction", [int(float(img_id[1])) for img_id in img_ids])
+        model_prediction.drop(columns=["Image"], inplace=True)
+    if not pano:
+        model_prediction.rename(columns={"Image": "img_id"}, inplace=True)
+    return (model_prediction)
+
+def execute_sql_query(dbname, query_file, params):
+
+    conn = psycopg2.connect(
+        dbname=dbname,
+        user=db.user,
+        host=db.host,
+    )
+    # create table with sample data points
+    with open(query_file, "r") as file:
+        query_create_table = file.read()
+    with conn.cursor(cursor_factory=DictCursor) as cursor:
+        cursor.execute(sql.SQL(query_create_table.format(**params)))
+        conn.commit()
+
+    conn.close()

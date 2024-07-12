@@ -1,5 +1,5 @@
 -- drop table if it exists
-drop table if exists sample_way_geometry;
+drop table if exists {table_name_way_selection};
 drop table if exists way_nodes_selection;
 drop table if exists node_selection;
 drop table if exists ways_selection;
@@ -24,7 +24,7 @@ select distinct ways.*
 from ways
 JOIN way_nodes_selection ON ways.id = way_nodes_selection.way_id;
 
-create table sample_way_geometry  as
+create table {table_name_way_selection}  as
 select id, ways_selection.tags->'surface' as surface, 
 ways_selection.tags ->'smoothness' as smoothness, 
 ways_selection.tags -> 'highway' as highway,
@@ -38,11 +38,11 @@ ways_selection.tags -> 'foot' as foot,
 from node_selection as ns join way_nodes_selection as wns on ns.id=wns.node_id where wns.way_id=ways_selection.id ) 
 FROM ways_selection;
 
-CREATE INDEX sample_way_geometry_idx ON sample_way_geometry USING GIST(geom);
+CREATE INDEX {table_name_way_selection}_idx ON {table_name_way_selection} USING GIST(geom);
 
 
---alter table sample_way_geometry add column length_m double precision;
---update sample_way_geometry set length_m = st_length(geom);
+--alter table {table_name_way_selection} add column length_m double precision;
+--update {table_name_way_selection} set length_m = st_length(geom);
 
 drop table if exists segmented_ways;
 
@@ -56,7 +56,7 @@ SELECT
         least((n.n + 1)::float / ceil(ST_Length(original.geom) / {segment_length}), 1)
     ) AS geom
 FROM 
-    sample_way_geometry AS original
+    {table_name_way_selection} AS original
 CROSS JOIN 
     generate_series(0, ceil(ST_Length(original.geom) / {segment_length})::integer - 1) AS n(n)
 WHERE 
@@ -98,15 +98,3 @@ update {table_name_snapped}
 set lon = ST_X(geom), 
 lat = ST_Y(geom);
 
-
-drop table if exists {table_name_point_selection};
-
-CREATE TABLE {table_name_point_selection} AS 
-  select img_id, way_id, point_geom as geom
-  FROM (
-  SELECT
-  p.img_id, p.way_id, p.geom as point_geom,
-  ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY random()) AS rn
-  FROM  {table_name_snapped} p
-) AS sampled
-WHERE rn <= 1;
