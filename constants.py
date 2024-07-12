@@ -12,3 +12,4 @@ SQL_MATCH_IMG_ROADS_CUST = os.path.join(SQL_FOLDER, "intersect_img_custom_ways.s
 SQL_JOIN_MODEL_PRED = os.path.join(SQL_FOLDER, "join_model_pred.sql")
 SQL_JOIN_MODEL_PRED_DIR = os.path.join(SQL_FOLDER, "join_model_pred_w_dir.sql")
 SQL_JOIN_SCENERY_PRED = os.path.join(SQL_FOLDER, "join_scenery_pred.sql")
+SQL_AGGREGATE_ON_ROADS = os.path.join(SQL_FOLDER, "aggregate_on_roads.sql")
