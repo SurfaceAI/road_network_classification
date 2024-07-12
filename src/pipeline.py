@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -9,9 +10,11 @@ from psycopg2.extras import DictCursor
 
 import utils 
 import config
-import constants as const
+import src.constants as const
 
-sys.path.append("./")
+
+sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent))
+
 import database_credentials as db
 
 
@@ -105,11 +108,12 @@ def match_img_to_roads(dbname, name, custom=False):
 
 
 def img_download(data_path,run, img_size, dest_folder_name = "imgs", csv_path = None, db_table = None, 
-                 parallel=True, custom=False):
+                 parallel=True, custom=False, img_id_col=False):
     dbname = db.database if not custom else getattr(db, custom)
 
     if csv_path:
-        img_ids = utils.img_ids_from_csv(csv_path)
+        img_id_col = 1 if not img_id_col else img_id_col
+        img_ids = utils.img_ids_from_csv(csv_path, img_id_col=img_id_col)
     elif db_table:
         img_ids = utils.img_ids_from_dbtable(db_table, dbname)
 

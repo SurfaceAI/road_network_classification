@@ -23,7 +23,8 @@ import concurrent.futures
 import geopandas as gpd
 #import matplotlib.pyplot as plt
 
-sys.path.append("./")
+sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent))
+
 import database_credentials as db
 
 import config
@@ -206,12 +207,12 @@ def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat
                     csvwriter.writerow(row)
 
 
-def img_ids_from_csv(csv_path):
+def img_ids_from_csv(csv_path, img_id_col=1):
     with open(
         csv_path, newline=""
     ) as csvfile:
         csvreader = csv.reader(csvfile)
-        image_ids = [row[1] for row in csvreader][1:]
+        image_ids = [row[img_id_col] for row in csvreader][1:]
     return image_ids
 
 def img_ids_from_dbtable(db_table, dbname):
