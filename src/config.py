@@ -46,7 +46,8 @@ berlin_prio_vset = {
     "maxLat": 52.5186462,
     "database": "databaseBerlinPrio",
     "custom_edge_geom_table": "berlin_priorisierungskonzept",
-    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin-20240704_164243.csv",
-    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin-20240711_095656.csv",
+    #"pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin-20240704_164243.csv",
+    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_run2-20240712_165759.csv",
+    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_run2-20240715_120354.csv",
     "orig_way_id_name": "id",
 }

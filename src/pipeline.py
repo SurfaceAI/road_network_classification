@@ -12,7 +12,6 @@ import utils
 import config
 import src.constants as const
 
-
 sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent))
 
 import database_credentials as db
@@ -66,7 +65,7 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat,
     utils.execute_sql_query(dbname, query_file, 
                       {"bbox0": minLon, "bbox1": minLat, "bbox2": maxLon, "bbox3": maxLat,
                        "table_name": f"{name}", 
-                       "table_name_snapped": f"{name}_snapped",
+                       #"table_name_snapped": f"{name}_snapped",
                        "table_name_point_selection": f"{name}_point_selection",
                        "table_name_way_selection": f"{name}_way_selection",
                        "segment_length": segment_length,
@@ -82,7 +81,7 @@ def img_selection(dbname, name):
 
     utils.execute_sql_query(dbname, const.SQL_IMG_SELECTION, 
                     {"table_name": f"{name}", 
-                    "table_name_snapped": f"{name}_snapped",
+                    #"table_name_snapped": f"{name}_snapped",
                     "table_name_point_selection": f"{name}_point_selection"})
 
 
@@ -94,7 +93,7 @@ def match_img_to_roads(dbname, name, custom=False):
     # TODO: do we actually need to snap or is ref. to closest geom enough?
     utils.execute_sql_query(dbname, query_file, 
                       {"table_name": f"{name}", 
-                       "table_name_snapped": f"{name}_snapped",
+                       #"table_name_snapped": f"{name}_snapped",
                        "table_name_point_selection": f"{name}_point_selection"})
 
     # clean table bc trailing whitespace is stored during export 
@@ -132,7 +131,7 @@ def img_classification(dbname, data_path, name, pred_path, run, pano=False, road
     query_file = const.SQL_JOIN_MODEL_PRED_DIR if pano else const.SQL_JOIN_MODEL_PRED
 
     utils.execute_sql_query(dbname, query_file, 
-                    {"table_name_snapped": f"{name}_snapped",
+                    {"table_name_point_selection": f"{name}_point_selection",
                     "csv_path": csv_path,
                     "pano": pano})
 
@@ -142,7 +141,7 @@ def img_classification(dbname, data_path, name, pred_path, run, pano=False, road
         pred_scene.to_csv(csv_path_scenery, index=False)
 
         utils.execute_sql_query(dbname, const.SQL_JOIN_SCENERY_PRED, 
-                    {"table_name_snapped": f"{name}_snapped",
+                    {"table_name_point_selection": f"{name}_point_selection",
                     "csv_path": csv_path_scenery,
                     "pano": pano})
 
@@ -151,7 +150,7 @@ def aggregate_by_road_segment(dbname, name):
     print("aggregate by road segment")
 
     utils.execute_sql_query(dbname, const.SQL_AGGREGATE_ON_ROADS, 
-                    {"table_name_point_selection": f"{name}_snapped",
+                    {"table_name_point_selection": f"{name}_point_selection",
                     "table_name_way_selection": f"{name}_way_selection"})
 
 
@@ -172,17 +171,17 @@ if __name__ == "__main__":
     dbname = db.database if not cg["database"] else getattr(db, cg["database"])
     
     #img_to_db(dbname, data_path, cg["name"])
-    #prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
-    #             custom=cg["database"], custom_edge_geom_table=cg["custom_edge_geom_table"], 
-    #             orig_way_id_name=cg["orig_way_id_name"])
-    # match_img_to_roads(cg["name"], custom=cg["database"])
-    img_selection(dbname, cg["name"])
+    prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
+                 custom=cg["database"], custom_edge_geom_table=cg["custom_edge_geom_table"], 
+                 orig_way_id_name=cg["orig_way_id_name"])
+    #match_img_to_roads(dbname, cg["name"], custom=cg["database"])
+    # img_selection(dbname, cg["name"])
     # img_download(data_path, cg["run"], db_table=f"{cg["name"]}_point_selection",custom=cg["database"], img_size=cg["img_size"])
     
     # TODO: crop pano images to perspective images
-    # img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"],
-    #                pano=False, road_scenery_path=cg["road_scenery_pred_path"])
-    # aggregate_by_road_segment(dbname, cg["name"])
+    #img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"],
+    #             pano=False, road_scenery_path=cg["road_scenery_pred_path"])
+    aggregate_by_road_segment(dbname, cg["name"])
 
     # pgsql2shp -f "weser_aue_ways_pred.shp" osmGermany "select * from weser_aue_way_selection"
     # pgsql2shp -f "berlin_ways_pred.shp" berlinPrio "select * from berlin_prio_vset_way_selection"
