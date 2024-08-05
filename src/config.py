@@ -39,7 +39,7 @@ berlin_prio_vset = {
     "name": "berlin_prio_vset",
     "img_size": "thumb_1024_url",
     "pred_path": "",
-    "run": "run2",
+    "run": "run4",
     "minLon": 13.35108089,
     "minLat": 52.454059600,
     "maxLon": 13.43233203,
@@ -47,7 +47,8 @@ berlin_prio_vset = {
     "database": "databaseBerlinPrio",
     "custom_edge_geom_table": "berlin_priorisierungskonzept",
     #"pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin-20240704_164243.csv",
-    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_run2-20240712_165759.csv",
-    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_run2-20240715_120354.csv",
+    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_vset_all-20240716_151503.csv",
+    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction//effnet_scenery_prediction-berlin_vset_all-20240718_120939.csv",
     "orig_way_id_name": "id",
+    "n_per_segment": 10
 }

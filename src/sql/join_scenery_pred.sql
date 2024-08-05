@@ -21,8 +21,8 @@ SELECT A.*, B.road_scenery,
     CASE
         WHEN B.road_scenery LIKE '1_1_road%' OR B.road_scenery LIKE '1_4_path%' THEN 'road'
         WHEN B.road_scenery LIKE '1_3_pedestrian%' THEN 'pedestrian'
-        WHEN B.road_scenery LIKE '1_2_cycleway__1_2_lane' THEN 'cycleway_lane'
-        WHEN B.road_scenery LIKE '1_2_cycleway__1_2_hochbord' THEN 'cycleway_hochbord'
+        WHEN B.road_scenery LIKE '1_2_bicycle__1_2_lane' THEN 'bike_lane'
+        WHEN B.road_scenery LIKE '1_2_bicycle__1_2_cycleway' THEN 'cycleway'
         ELSE 'other'
     END AS road_type
 FROM  {table_name_point_selection} A

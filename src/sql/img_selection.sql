@@ -9,4 +9,4 @@ CREATE TABLE {table_name_point_selection} AS
   ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY p.captured_at DESC) AS rn -- select most current
   FROM  {table_name} p
 ) AS sampled
-WHERE rn <= 10; -- select n points per segment
+WHERE rn <= {n_per_segment}; -- select n points per segment

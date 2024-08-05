@@ -9,7 +9,6 @@ add column if not exists n_segments int;
 --add column if not exists min_captured_at timestamp,
 --add column if not exists max_captured_at timestamp;
 
--- aggregate over segments first, then ways
 DROP TABLE IF EXISTS temp_table;
 
 ALTER TABLE {table_name_way_selection} 
@@ -84,7 +83,9 @@ from SegmentCounts SC
 WHERE ways.id = SC.way_id and ways.road_type = SC.road_type;
 
 delete from {table_name_way_selection} ways
-WHERE ways.way_length / ways.n_segments  > 30; -- remove predictions where there are not predictions every 30 meters -- TODO: instead cut segment?
+WHERE ways.way_length / ways.n_segments  > 30 or (ways.vote_count < (ways.n_segments * 2)); -- remove predictions where there are not 2 votes every 30 meters 
+
+-- TODO: instead cut segment?
 
 
 WITH QualityAvg AS (

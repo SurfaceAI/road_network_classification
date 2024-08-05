@@ -16,6 +16,7 @@ drop table if exists segmented_ways;
 
 CREATE TABLE segmented_ways AS
 SELECT 
+   n.n AS segment_number,
    (original.id || '_' || n.n) AS segment_id,
     original.id as id,
     ST_LineSubstring(
