@@ -19,7 +19,7 @@ CREATE TABLE temp_table AS (
         SELECT
           l.geom,
           l.id AS way_id,
-          l.segment_id,
+          l.segment_id
         FROM
           segmented_ways AS l
         ORDER BY

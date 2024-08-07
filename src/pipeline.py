@@ -117,8 +117,15 @@ def img_download(data_path,run, img_size, dest_folder_name = "imgs", csv_path = 
     elif db_table:
         img_ids = utils.img_ids_from_dbtable(db_table, dbname)
 
-    print("Downloading images")
-    utils.download_images(img_ids, os.path.join(data_path, run, dest_folder_name), img_size=img_size, 
+
+    # only download images that are not present yet in download folder
+    download_folder = os.path.join(data_path, run, dest_folder_name)
+    if os.path.exists(download_folder):
+        imgs_in_download_folder =  os.listdir(download_folder)
+        img_ids = [img_id for img_id in img_ids if f"{img_id}.jpg" not in imgs_in_download_folder]
+
+    print(f"Downloading {len(img_ids)} images")
+    utils.download_images(img_ids, download_folder, img_size=img_size, 
                           parallel=parallel)
 
 ### classify images ###
@@ -162,27 +169,27 @@ def roadtype_seperation():
 
 if __name__ == "__main__":
 
-    cg = config.berlin_prio_vset
+    cg = config.berlin_prio
     data_path = os.path.join(cg["data_root"], cg["name"])
     
-    
-    # query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
+    #query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
     
     
     dbname = db.database if not cg["database"] else getattr(db, cg["database"])
     
     #img_to_db(dbname, data_path, cg["name"])
-    prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
-                 custom=cg["database"], custom_edge_geom_table=cg["custom_edge_geom_table"], 
-                 orig_way_id_name=cg["orig_way_id_name"])
+    #prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
+    #             custom=cg["database"], custom_edge_geom_table=cg["custom_edge_geom_table"], 
+    #             orig_way_id_name=cg["orig_way_id_name"])
     #match_img_to_roads(dbname, cg["name"], custom=cg["database"])
     # img_selection(dbname, cg["name"], cg["n_per_segment"])
-    # img_download(data_path, cg["run"], db_table=f"{cg["name"]}_point_selection",custom=cg["database"], img_size=cg["img_size"])
+    img_download(data_path, cg["run"], db_table=f"{cg["name"]}",custom=cg["database"], img_size=cg["img_size"])
+    #img_download(data_path, cg["run"], db_table=f"{cg["name"]}_point_selection",custom=cg["database"], img_size=cg["img_size"])
     
     # TODO: crop pano images to perspective images
-    img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"],
-                 pano=False, road_scenery_path=cg["road_scenery_pred_path"])
-    aggregate_by_road_segment(dbname, cg["name"])
+    #img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"],
+    #            pano=False, road_scenery_path=cg["road_scenery_pred_path"])
+    #aggregate_by_road_segment(dbname, cg["name"])
 
     # pgsql2shp -f "weser_aue_ways_pred.shp" osmGermany "select * from weser_aue_way_selection"
     # pgsql2shp -f "berlin_ways_pred.shp" berlinPrio "select * from berlin_prio_vset_way_selection"
