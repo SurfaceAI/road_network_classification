@@ -28,6 +28,7 @@ sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent))
 import database_credentials as db
 
 import config
+import constants as const
 
 # set access tokens
 with open(config.token_path, "r") as file:
@@ -69,8 +70,8 @@ def get_tile_images(tile):
     global current_token
 
     response = requests.get(
-        config.mapillary_tile_url.format(
-            config.tile_coverage, int(tile.z), int(tile.x), int(tile.y)
+        const.MAPILLARY_TILE_URL.format(
+            const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
         ),
         params={"access_token": access_tokens[current_token]},
     )
@@ -81,15 +82,15 @@ def get_tile_images(tile):
         print(response.reason)
         current_token = abs(current_token - 1)  # switch between 0 and 1 and try again
         response = requests.get(
-            config.mapillary_tile_url.format(
-                config.tile_coverage, int(tile.z), int(tile.x), int(tile.y)
+            const.MAPILLARY_TILE_URL.format(
+                const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
             ),
             params={"access_token": access_tokens[current_token]},
         )
 
     # return response
     return vt_bytes_to_geojson(
-        response.content, tile.x, tile.y, tile.z, layer=config.tile_layer
+        response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
     )
 
 
@@ -117,13 +118,13 @@ def get_images_metadata(tile):
     ]
     output = list()
     response = requests.get(
-        config.mapillary_tile_url.format(
-            config.tile_coverage, int(tile.z), int(tile.x), int(tile.y)
+        const.MAPILLARY_TILE_URL.format(
+            const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
         ),
         params={"access_token": access_tokens[current_token]},
     )
     data = vt_bytes_to_geojson(
-        response.content, tile.x, tile.y, tile.z, layer=config.tile_layer
+        response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
     )
 
     # a feature is a point/image
@@ -155,7 +156,7 @@ def download_image(img_id, img_size, img_folder):
         img_folder (str): path of folder to save image to
     """
     response = requests.get(
-        config.mapillary_graph_url.format(img_id),
+        const.MAPILLARY_GRAPH_URL.format(img_id),
         params={
             "fields": img_size,
             "access_token": access_tokens[current_token],
@@ -263,7 +264,7 @@ def write_tiles_within_boundary(csv_path, boundary=None, minLon=None, minLat=Non
 
     tiles = list()
     tiles += list(
-        mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], config.zoom)
+        mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], const.ZOOM)
     )
 
     # with open(
@@ -273,13 +274,13 @@ def write_tiles_within_boundary(csv_path, boundary=None, minLon=None, minLat=Non
     #     csvwriter.writerow(["x", "y", "z", "lat", "lon"])
     #     for i in range(0, len(tiles)):
     #         tile = tiles[i]
-    #         lon, lat = tile_center(tile.x, tile.y, config.zoom)
+    #         lon, lat = tile_center(tile.x, tile.y, const.zoom)
     #         point = gpd.GeoDataFrame(
     #             geometry=[Point(lon, lat)], crs="EPSG:4326"
     #         )
     #         # if tile center within boundary of city, write to csv
     #         if boundary.geometry.contains(point)[0]:
-    #             csvwriter.writerow([tile.x, tile.y, config.zoom, lat, lon])
+    #             csvwriter.writerow([tile.x, tile.y, const.zoom, lat, lon])
 
     return tiles
 
@@ -299,7 +300,7 @@ def clean_surface(surface):
 
 def query_coords(img_id):
     response = requests.get(
-    config.mapillary_graph_url.format(img_id),
+    const.MAPILLARY_GRAPH_URL.format(img_id),
     params={"access_token": access_tokens[current_token],
             "fields" : "geometry"},
     )
@@ -308,7 +309,7 @@ def query_coords(img_id):
 
 def query_creator_name(image_id):
     response = requests.get(
-        config.mapillary_graph_url.format(image_id),
+        const.MAPILLARY_GRAPH_URL.format(image_id),
         params={
             "fields": "creator",
             "access_token": access_tokens[current_token],
@@ -327,7 +328,7 @@ def query_creator_name(image_id):
 
 def query_sequenceid(img_id):
     response = requests.get(
-    config.mapillary_graph_url.format(img_id),
+    const.MAPILLARY_GRAPH_URL.format(img_id),
     params={"access_token": access_tokens[current_token],
             "fields" : "sequence"},
     )
@@ -336,7 +337,7 @@ def query_sequenceid(img_id):
 
 def query_sequence(sequence_id):
     response = requests.get(
-        config.mapillary_graph_url.format("image_ids"),
+        const.MAPILLARY_GRAPH_URL.format("image_ids"),
         params={"access_token": access_tokens[current_token],
                 "sequence_id": sequence_id},
     )
@@ -352,7 +353,7 @@ def query_sequence(sequence_id):
 
 def query_cangle(img_id):
     response = requests.get(
-    config.mapillary_graph_url.format(img_id),
+    const.MAPILLARY_GRAPH_URL.format(img_id),
     params={"access_token": access_tokens[current_token],
             "fields" : "computed_compass_angle"},
     )

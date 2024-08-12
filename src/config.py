@@ -1,30 +1,22 @@
 import os
 
+# mapillary token file
 token_path = "mapillary_token.txt"
-mapillary_tile_url = "https://tiles.mapillary.com/maps/vtp/{}/2/{}/{}/{}"
-mapillary_graph_url = "https://graph.mapillary.com/{}"
-tile_coverage = "mly1_public"
-tile_layer = "image"  # "overview"
-zoom = 14
+
+# parallelized image download
 parallel_batch_size = 100
 
-
-
-#s1 = {
-    #name = "s1"
-    #pred_path = "test_sample-aggregation_sample-20240305_173146.csv"
-    # minLon=13.4097172387
-    # minLat=52.49105842
-    # maxLon=13.4207674991
-    # maxLat=52.4954385756
-    # name = "s2"
-    # pred_path = "test_sample-s2-20240415_101331.csv"
-#}
+global_config = {
+    "data_root" : "data",
+    "database": "database",
+    "pbf_path" : "data/germany-latest.osm.pbf",
+    "img_size": "thumb_2048_url",
+    "n_per_segment" : None
+}
 
 weseraue = {
-    "data_root": "data",
+    **global_config,
     "name": "weser_aue",
-    "img_size": "thumb_2048_url",
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/weseraue/prediction/effnet_surface_quality_prediction-weseraue_imgs_2048-20240617_180008.csv",
     "run": "run12",
     "minLon":8.92273,
@@ -35,20 +27,53 @@ weseraue = {
 }
 
 berlin_prio_vset = {
-    "data_root": "data",
+    **global_config,
     "name": "berlin_prio_vset",
-    "img_size": "thumb_1024_url",
-    "pred_path": "",
     "run": "run4",
     "minLon": 13.35108089,
     "minLat": 52.454059600,
     "maxLon": 13.43233203,
     "maxLat": 52.5186462,
     "database": "databaseBerlinPrio",
-    "custom_edge_geom_table": "berlin_priorisierungskonzept",
-    #"pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin-20240704_164243.csv",
+    "pbf_path": None,
+    "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
+    "crs": 25833,
+    "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_vset_all-20240716_151503.csv",
     "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction//effnet_scenery_prediction-berlin_vset_all-20240718_120939.csv",
-    "orig_way_id_name": "id",
-    "n_per_segment": 10
 }
+
+
+berlin_prio = {
+    **global_config,
+    "data_root": "data",
+    "name": "berlin_prio",
+    "pred_path": "",
+    "run": "run1",
+    "minLon": 13.090211,
+    "minLat": 52.377425,
+    "maxLon": 13.7416329,
+    "maxLat": 52.660392,
+    "database": "databaseBerlinPrio",
+    "pbf_path": None,
+    "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
+    "crs": 25833,
+    "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
+    "custom_road_type_separation": "",
+    "img_selection_csv_path": "img_selection.csv",
+    "road_scenery_pred_path": "",
+}
+
+dresden = {
+    **global_config,
+    "name": "dresden",
+    "run": "run1",
+    "minLon": 13.654175,
+    "minLat": 51.00662,
+    "maxLon": 13.828583,
+    "maxLat": 51.094676,
+    "pred_path": "",
+    "road_scenery_pred_path": "",
+}
+
+

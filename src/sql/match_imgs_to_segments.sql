@@ -11,8 +11,8 @@ CREATE TABLE temp_table AS (
       n.segment_id,
       p.geom,
       to_timestamp(p.captured_at / 1000) as captured_at_timestamp,
-      ST_ClosestPoint(n.geom, st_transform(p.geom, 25833)) AS geom_snapped,
-      ST_Distance(n.geom, st_transform(p.geom, 25833)) AS dist
+      ST_ClosestPoint(n.geom, st_transform(p.geom, {crs})) AS geom_snapped,
+      ST_Distance(n.geom, st_transform(p.geom, {crs})) AS dist
     FROM
       {table_name} AS p
       CROSS JOIN LATERAL (
@@ -23,7 +23,7 @@ CREATE TABLE temp_table AS (
         FROM
           segmented_ways AS l
         ORDER BY
-          l.geom <-> st_transform(p.geom, 25833) -- order by distance
+          l.geom <-> st_transform(p.geom, {crs}) -- order by distance
         LIMIT 1
       ) AS n
   ) AS subquery
