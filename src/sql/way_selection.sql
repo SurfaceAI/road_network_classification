@@ -36,7 +36,8 @@ ways_selection.tags -> 'sidewalk' as sidewalk,
 ways_selection.tags -> 'foot' as foot,
 (select st_transform(ST_LineFromMultiPoint( ST_Collect(ns.geom order by wns.sequence_id)), 3035)  AS geom
 from node_selection as ns join way_nodes_selection as wns on ns.id=wns.node_id where wns.way_id=ways_selection.id ) 
-FROM ways_selection;
+FROM ways_selection
+where ways_selection.tags -> 'highway' != 'service'; -- exclude service ways
 
 CREATE INDEX {table_name_way_selection}_idx ON {table_name_way_selection} USING GIST(geom);
 
