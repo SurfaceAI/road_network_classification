@@ -1,3 +1,5 @@
+src/lndw.*
+src/temp.*
 data
 data/*
 .DS_Store

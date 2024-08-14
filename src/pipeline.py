@@ -58,6 +58,8 @@ def img_to_db(dbname, data_path, name):
     logging.info(f"create img table {name} in database")
 
     aggregate_sample_path = os.path.join(data_path, f"{name}_img_metadata.csv")
+
+    # TODO: why create new csv file?
     temp_path = os.path.join(os.getcwd(), data_path, "temp.csv")
     image_selection = pd.read_csv(aggregate_sample_path)
     #image_selection.drop("date", axis=1)
@@ -76,16 +78,19 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat,
     logging.info(f"create linestrings in bounding box")
     query_file = const.SQL_WAY_SELECTION if not custom_sql_way_selection else custom_sql_way_selection
 
+    # TODO: This step takes quite long for OSM if bbox is large - possible to speed up?
     utils.execute_sql_query(dbname, query_file, 
                         {"bbox0": minLon, "bbox1": minLat, "bbox2": maxLon, "bbox3": maxLat,
-                        "table_name_way_selection": f"{name}_way_selection", **custom_attrs
-                        })
+                       "table_name_way_selection": f"{name}_way_selection", **custom_attrs
+                       })
 
     logging.info(f"cut lines into segments of length {segment_length}")
     utils.execute_sql_query(dbname, const.SQL_SEGMENT_WAYS, 
                       {"table_name_way_selection": f"{name}_way_selection",
+                       "table_name_segmented_ways": f"{name}_segmented_ways",
                        "segment_length": segment_length,
                        })
+    logging.info("line preparation complete")
     # export table to csv
     #    cursor.execute(sql.SQL(f"copy (select * from {table_name_snapped}) TO '{output_path}' DELIMITER ',' CSV HEADER;"))
     #    conn.commit()
@@ -104,10 +109,12 @@ def match_img_to_roads(dbname, name, crs=None):
 
     crs = 3035 if crs is None else crs
 
-    # this also takes a while: for Dresden (0.5 Mio imgs) around xx
+    # this takes a while: for Dresden (0.5 Mio imgs and 58.000 ways) around 14:25 hours
+    # (15.000 imgs and 2.000 segments goes instantly)
     utils.execute_sql_query(dbname, const.SQL_MATCH_IMG_ROADS, 
                       {"table_name": f"{name}", 
                        "table_name_point_selection": f"{name}_point_selection",
+                       "table_name_segmented_ways": f"{name}_segmented_ways",
                        "crs": crs})
     logging.info("matching complete")
     
@@ -201,14 +208,13 @@ if __name__ == "__main__":
     ###### ---- get image metadata ---- ######
     # TODO: include pano images?
     # TODO: write directly into DB (without csv?)
-    # query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
-    # img_to_db(dbname, data_path, cg["name"])
+    #query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
+    #img_to_db(dbname, data_path, cg["name"])
     
     ##### ---- prepare line segments ---- ######
     custom_sql_way_selection = False if "custom_sql_way_selection" not in cg.keys() else cg["custom_sql_way_selection"]
     custom_attrs = {} if "custom_attrs" not in cg.keys() else cg["custom_attrs"]
-    # TODO: This step takes quite long for OSM - possible to speed up?
-    # prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
+    #prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
     #             custom_sql_way_selection = custom_sql_way_selection, custom_attrs=custom_attrs)
     
     ##### ---- match images to road segments ---- ######

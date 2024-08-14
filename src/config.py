@@ -48,7 +48,6 @@ berlin_prio = {
     **global_config,
     "data_root": "data",
     "name": "berlin_prio",
-    "pred_path": "",
     "run": "run1",
     "minLon": 13.090211,
     "minLat": 52.377425,
@@ -61,7 +60,8 @@ berlin_prio = {
     "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
     "custom_road_type_separation": "",
     "img_selection_csv_path": "img_selection.csv",
-    "road_scenery_pred_path": "",
+    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_all-20240810_170444.csv",
+    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_all-20240811_053246.csv",
 }
 
 dresden = {
@@ -72,6 +72,18 @@ dresden = {
     "minLat": 51.00662,
     "maxLon": 13.828583,
     "maxLat": 51.094676,
+    "pred_path": "",
+    "road_scenery_pred_path": "",
+}
+
+dresden_small = {
+    **global_config,
+    "name": "dresden_small",
+    "run": "run1",
+    "minLon": 13.735721,
+    "minLat": 51.049871,
+    "maxLon": 13.752246,
+    "maxLat": 51.05792,
     "pred_path": "",
     "road_scenery_pred_path": "",
 }

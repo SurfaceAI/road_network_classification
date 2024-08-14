@@ -18,3 +18,5 @@ COPY {table_name} FROM '{absolute_path}' DELIMITER ',' CSV HEADER;
 ALTER TABLE {table_name} ADD COLUMN geom geometry(Point, 4326);
 
 UPDATE {table_name} SET geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);
+
+CREATE INDEX {table_name}_idx ON {table_name} USING GIST(geom);

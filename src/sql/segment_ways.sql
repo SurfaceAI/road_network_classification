@@ -1,9 +1,9 @@
 
 CREATE INDEX IF NOT EXISTS {table_name_way_selection}_idx ON {table_name_way_selection} USING GIST(geom);
 
-drop table if exists segmented_ways;
+drop table if exists {table_name_segmented_ways};
 
-CREATE TABLE segmented_ways AS
+CREATE TABLE {table_name_segmented_ways} AS
 SELECT 
    n.n AS segment_number,
    (original.id || '_' || n.n) AS segment_id,
@@ -20,4 +20,4 @@ CROSS JOIN
 WHERE 
     ST_Length(original.geom) > 10;
 
-CREATE INDEX segmented_ways_idx ON segmented_ways USING GIST(geom);
+CREATE INDEX {table_name_segmented_ways}_idx ON {table_name_segmented_ways} USING GIST(geom);
