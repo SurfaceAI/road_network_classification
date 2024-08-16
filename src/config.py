@@ -11,7 +11,11 @@ global_config = {
     "database": "database",
     "pbf_path" : "data/germany-latest.osm.pbf",
     "img_size": "thumb_2048_url",
-    "n_per_segment" : None
+    "n_per_segment" : None,
+    "segment_length": 20,
+    "min_road_length" : 10,
+    "segments_per_group": 100,
+    "img_selection_csv_path": "img_selection.csv",
 }
 
 weseraue = {
@@ -37,10 +41,11 @@ berlin_prio_vset = {
     "database": "databaseBerlinPrio",
     "pbf_path": None,
     "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
+    "custom_road_type_separation": "src/sql/assign_road_types_berlin.sql",
     "crs": 25833,
     "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_vset_all-20240716_151503.csv",
-    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction//effnet_scenery_prediction-berlin_vset_all-20240718_120939.csv",
+    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_vset_all-20240718_120939.csv",
 }
 
 
@@ -58,10 +63,12 @@ berlin_prio = {
     "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
     "crs": 25833,
     "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
-    "custom_road_type_separation": "",
-    "img_selection_csv_path": "img_selection.csv",
+    "custom_road_type_separation": "src/sql/assign_road_types_berlin.sql",
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_all-20240810_170444.csv",
     "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_all-20240811_053246.csv",
+    "min_road_length" : 0,
+    "segments_per_group": 1000,
+
 }
 
 dresden = {

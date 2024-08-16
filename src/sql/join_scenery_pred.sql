@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS temp_pt_selection;
 
 alter table {table_name_point_selection} 
 drop column if exists road_scenery,
-drop column if exists road_type;
+drop column if exists road_type_pred;
 
 -- Update `points` table by setting `road_scenery` from `temp_road_scenery`
 create TABLE temp_pt_selection AS
@@ -24,7 +24,7 @@ SELECT A.*, B.road_scenery,
         WHEN B.road_scenery LIKE '1_2_bicycle__1_2_lane' THEN 'bike_lane'
         WHEN B.road_scenery LIKE '1_2_bicycle__1_2_cycleway' THEN 'cycleway'
         ELSE 'other'
-    END AS road_type
+    END AS road_type_pred
 FROM  {table_name_point_selection} A
 LEFT JOIN temp_scenery_pred B on A.img_id = B.img_id;
 
