@@ -40,7 +40,7 @@ CREATE TABLE temp_table AS (
         LIMIT 1
       ) AS n
   ) AS subquery
-  WHERE dist <= 10 -- only consider a road a match if within 10 meters
+  WHERE dist <= {dist_from_road} -- only consider a road a match if within x meters
 );
 DROP TABLE  {table_name};
 ALTER TABLE temp_table RENAME TO  {table_name};

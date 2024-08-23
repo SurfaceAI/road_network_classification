@@ -12,6 +12,7 @@ global_config = {
     "pbf_path" : "data/germany-latest.osm.pbf",
     "img_size": "thumb_2048_url",
     "n_per_segment" : None,
+    "dist_from_road": 10,
     "segment_length": 20,
     "min_road_length" : 10,
     "segments_per_group": 100,

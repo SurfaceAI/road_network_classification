@@ -93,8 +93,8 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, min_road
                        })
     logging.info("line preparation complete")
     # export table to csv
-    #    cursor.execute(sql.SQL(f"copy (select * from {table_name_snapped}) TO '{output_path}' DELIMITER ',' CSV HEADER;"))
-    #    conn.commit()
+    # cursor.execute(sql.SQL(f"copy (select * from {table_name_snapped}) TO '{output_path}' DELIMITER ',' CSV HEADER;"))
+    # conn.commit()
 
 
 def img_selection(dbname, name, n_per_segment):
@@ -106,13 +106,14 @@ def img_selection(dbname, name, n_per_segment):
                     "n_per_segment": n_per_segment})
 
 
-def match_img_to_roads(dbname, name, crs=None):
+def match_img_to_roads(dbname, name, dist_from_road, crs=None):
     logging.info("match imgs to road linestrings")
 
     crs = 3035 if crs is None else crs
 
     utils.execute_sql_query(dbname, const.SQL_MATCH_IMG_ROADS, 
-                      {"table_name": f"{name}", 
+                      {"table_name": f"{name}",
+                       "dist_from_road": dist_from_road,
                        "table_name_point_selection": f"{name}_point_selection",
                        "table_name_segmented_ways": f"{name}_segmented_ways",
                        "crs": crs})
@@ -214,6 +215,7 @@ if __name__ == "__main__":
     
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
+    # runs 7 hours for Berlin without metadataquery, img download and classification
     cg = config.berlin_prio
     data_path = os.path.join(cg["data_root"], cg["name"])
     
@@ -226,18 +228,18 @@ if __name__ == "__main__":
     # TODO: include pano images?
     # TODO: write directly into DB (without csv?)
     # query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
-    # img_to_db(dbname, data_path, cg["name"])
+    img_to_db(dbname, data_path, cg["name"])
     
     ##### ---- prepare line segments ---- ######
     custom_sql_way_selection = False if "custom_sql_way_selection" not in cg.keys() else cg["custom_sql_way_selection"]
     custom_attrs = {} if "custom_attrs" not in cg.keys() else cg["custom_attrs"]
-    #prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
-    #             min_road_length=cg["min_road_length"], segment_length=cg["segment_length"],
-    #             custom_sql_way_selection = custom_sql_way_selection, custom_attrs=custom_attrs)
+    prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
+                 min_road_length=cg["min_road_length"], segment_length=cg["segment_length"],
+                 custom_sql_way_selection = custom_sql_way_selection, custom_attrs=custom_attrs)
     
     ##### ---- match images to road segments ---- ######
-    #crs = None if "crs" not in cg.keys() else cg["crs"]
-    #match_img_to_roads(dbname, cg["name"], crs=crs)
+    crs = None if "crs" not in cg.keys() else cg["crs"]
+    match_img_to_roads(dbname, cg["name"], cg["dist_from_road"], crs=crs)
     
     # limit number of images per road segment?
     if cg["n_per_segment"]:
@@ -254,8 +256,8 @@ if __name__ == "__main__":
     
     #### ---- add classification information ---- ####
     # TODO: best way to integrate classification model?
-    #img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"], point_table=point_table,
-    #            pano=False, road_scenery_path=cg["road_scenery_pred_path"])
+    img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"], point_table=point_table,
+                pano=False, road_scenery_path=cg["road_scenery_pred_path"])
     
     #### ---- aggregation algorithm ---- ####
     # split geoms if multiple road types are represented by one
@@ -266,6 +268,7 @@ if __name__ == "__main__":
     aggregate_by_road_segment(dbname, cg["name"], point_table=point_table, 
                               min_road_length=cg["min_road_length"], segments_per_group=cg["segments_per_group"])
 
-#    output_file = os.path.join(data_path, f"{name}.shp")
-#    subprocess.run(f'pgsql2shp -f "{output_file}" {dbname} "select * from {name}_way_selection"', shell = True, executable="/bin/bash")
-#    logging.info(f"result shp file written to {output_file}")
+    # write result to shape file
+    output_file = os.path.join(data_path, cg["run"], f"{cg["name"]}_pred.shp")
+    subprocess.run(f'pgsql2shp -f "{output_file}" {dbname} "select * from {cg["name"]}_group_predictions"', shell = True, executable="/bin/bash")
+    logging.info(f"result shp file written to {output_file}")
