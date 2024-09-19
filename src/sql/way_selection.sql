@@ -25,7 +25,7 @@ CREATE TEMP TABLE ways_selection as
 select distinct ways.* 
 from ways
 JOIN way_nodes_selection ON ways.id = way_nodes_selection.way_id
-where ways_selection.tags -> 'highway' not in ('construction', 'proposed', 'corridor', 'service'); -- exclude service ways
+where ways.tags -> 'highway' not in ('construction', 'proposed', 'corridor', 'service'); -- exclude service ways
 
 
 -- this step takes some time when bbox is large (38 min for Dresden BBox)
@@ -54,7 +54,10 @@ alter table {table_name_way_selection} add column if not exists road_type varcha
 
 UPDATE {table_name_way_selection}
 SET road_type = CASE
-    WHEN highway IN ('motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'service', 'track', 'road', 'path') THEN 'road/path'
+    WHEN highway IN ('motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 
+    'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 
+    'living_street', 'service', 'track', 'road', 'path') THEN 'road'
+    WHEN highway IN ( 'unclassified', 'service', 'track', 'path') THEN 'path'
     WHEN (highway = 'cycleway') and (cycleway = 'lane') THEN 'bike_lane'
     WHEN highway = 'cycleway' THEN 'cycleway'
     WHEN highway IN ('footway', 'pedestrian', 'steps') THEN 'footway'

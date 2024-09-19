@@ -19,8 +19,7 @@ drop column if exists road_type_pred;
 create TABLE temp_pt_selection AS
 SELECT A.*, B.road_scenery, 
     CASE
-        WHEN B.road_scenery LIKE '1_1_road%' THEN 'road'
-        WHEN B.road_scenery LIKE '1_4_path%' THEN 'path'
+        WHEN B.road_scenery LIKE '1_1_road%' OR B.road_scenery LIKE '1_4_path%' THEN 'road'
         WHEN B.road_scenery LIKE '1_3_pedestrian%' THEN 'pedestrian'
         WHEN B.road_scenery LIKE '1_2_bicycle__1_2_lane' THEN 'bike_lane'
         WHEN B.road_scenery LIKE '1_2_bicycle__1_2_cycleway' THEN 'cycleway'

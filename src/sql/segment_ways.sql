@@ -6,6 +6,7 @@ drop table if exists {table_name_segmented_ways};
 CREATE TABLE {table_name_segmented_ways} AS
 SELECT 
    n.n AS segment_number,
+   {additional_id_column}
    (original.id || '_' || n.n) AS segment_id,
     original.id as id,
     road_type,

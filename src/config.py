@@ -34,7 +34,7 @@ weseraue = {
 berlin_prio_vset = {
     **global_config,
     "name": "berlin_prio_vset",
-    "run": "run4",
+    "run": "run9",
     "minLon": 13.35108089,
     "minLat": 52.454059600,
     "maxLon": 13.43233203,
@@ -43,10 +43,12 @@ berlin_prio_vset = {
     "pbf_path": None,
     "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
     "custom_road_type_separation": "src/sql/assign_road_types_berlin.sql",
+    "additional_id_column": "elem_nr",
     "crs": 25833,
     "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_vset_all-20240716_151503.csv",
     "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_vset_all-20240718_120939.csv",
+    "custom_road_scenery_join": "src/sql/join_scenery_pred_berlin.sql",
 }
 
 
@@ -67,6 +69,7 @@ berlin_prio = {
     "custom_road_type_separation": "src/sql/assign_road_types_berlin.sql",
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_all-20240810_170444.csv",
     "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_all-20240811_053246.csv",
+    "custom_road_scenery_join": "src/sql/join_scenery_pred_berlin.sql",
     "min_road_length" : 0,
     "segments_per_group": 1000,
 
@@ -92,8 +95,8 @@ dresden_small = {
     "minLat": 51.049871,
     "maxLon": 13.752246,
     "maxLat": 51.05792,
-    "pred_path": "",
-    "road_scenery_pred_path": "",
+    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/dresden/prediction/effnet_surface_quality_prediction-dresden_small_imgs-20240830_154156.csv",
+    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/dresden/prediction/effnet_scenery_prediction-dresden_small_imgs-20240830_160348.csv",
 }
 
 

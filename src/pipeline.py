@@ -72,11 +72,12 @@ def img_to_db(dbname, data_path, name):
 
 
 def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, min_road_length,
-                          segment_length, custom_sql_way_selection=False,
+                          segment_length, additional_id_column, custom_sql_way_selection=False,
                           custom_attrs={}):
 
     logging.info(f"create linestrings in bounding box")
     query_file = const.SQL_WAY_SELECTION if not custom_sql_way_selection else custom_sql_way_selection
+    additional_id_column = f"{additional_id_column}," if additional_id_column != "" else "" # add comma
 
     # TODO: This step takes quite long for OSM if bbox is large - possible to speed up?
     utils.execute_sql_query(dbname, query_file, 
@@ -89,7 +90,8 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, min_road
                       {"table_name_way_selection": f"{name}_way_selection",
                        "table_name_segmented_ways": f"{name}_segmented_ways",
                        "segment_length": segment_length,
-                       "min_road_length": min_road_length
+                       "min_road_length": min_road_length,
+                       "additional_id_column": additional_id_column
                        })
     logging.info("line preparation complete")
     # export table to csv
@@ -142,7 +144,7 @@ def img_download(data_path, run, dbname, img_size, dest_folder_name = "imgs", cs
                           parallel=parallel)
 
 
-def img_classification(dbname, data_path, name, pred_path, run, point_table, pano=False, road_scenery_path=False):
+def img_classification(dbname, data_path, name, pred_path, run, point_table, pano=False, road_scenery_path=False, custom_road_scenery_join=False):
     logging.info("add surface classification results to db")
     pred = utils.format_predictions(pd.read_csv(pred_path, dtype={"Image": str, "Level_1":str}), pano=pano)
     folder = os.path.join(os.getcwd(),data_path, name, run)
@@ -158,33 +160,43 @@ def img_classification(dbname, data_path, name, pred_path, run, point_table, pan
                     "csv_path": csv_path,
                     "pano": pano})
 
+    query_file = const.SQL_JOIN_SCENERY_PRED if not custom_road_scenery_join else custom_road_scenery_join
     if road_scenery_path:
         logging.info("add scenery results to db")
         pred_scene = utils.format_scenery_predictions(pd.read_csv(road_scenery_path, dtype={"Image": str}), pano=pano)
         csv_path_scenery = os.path.join(os.getcwd(),data_path,  name, run, "scenery_class_results.csv")
         pred_scene.to_csv(csv_path_scenery, index=False)
 
-        utils.execute_sql_query(dbname, const.SQL_JOIN_SCENERY_PRED, 
+        utils.execute_sql_query(dbname, query_file, 
                     {"table_name_point_selection": point_table,
                     "csv_path": csv_path_scenery,
                     "pano": pano})
 
     logging.info("completed adding classification results to db")
 
-def aggregate_by_road_segment(dbname, name, point_table, min_road_length, segments_per_group):
+def aggregate_by_road_segment(dbname, name, point_table, min_road_length, segments_per_group, additional_id_column=""):
     logging.info("aggregate by road segment")
-
-    query_file = const.SQL_AGGREGATE_ON_ROADS # if not custom_aggregation else custom_aggregation
-
-
-    utils.execute_sql_query(dbname, query_file, 
-                    {"table_name_point_selection": point_table,
+    additional_id_column = f"ways.{additional_id_column}," if additional_id_column != "" else "" # add comma
+    grouping_ids = f"{additional_id_column}id,part_id,group_num"
+    params = {      "additional_id_column": additional_id_column,
+                    "grouping_ids": grouping_ids,
+                    "table_name_point_selection": point_table,
                      "table_name_segmented_ways": f"{name}_segmented_ways",
                     "table_name_way_selection": f"{name}_way_selection",
                     "table_name_eval_groups": f"{name}_eval_groups",
                     "table_name_group_predictions": f"{name}_group_predictions",
                     "segments_per_group" : segments_per_group,
-                    "min_road_length": min_road_length})
+                    "min_road_length": min_road_length}
+
+    query_file = const.SQL_AGGREGATE_ON_ROADS.format(1)
+    utils.execute_sql_query(dbname, query_file, params)
+
+    query_file = const.SQL_AGGREGATE_ON_ROADS.format(2)
+    utils.execute_sql_query(dbname, query_file, params)
+
+    query_file = const.SQL_AGGREGATE_ON_ROADS.format(3)
+    utils.execute_sql_query(dbname, query_file, params)
+
     logging.info("aggregation complete")
 
 
@@ -198,7 +210,7 @@ def roadtype_separation(dbname, name, custom_road_type_separation):
     query_file = const.SQL_ASSIGN_ROAD_TYPES if not custom_road_type_separation else custom_road_type_separation
     
     if query_file != None:
-        logging.info("assign road_type and create individual geometries if not present yet")
+        logging.info("create partitions for each road type of a geometry in a separate table")
 
         utils.execute_sql_query(dbname, query_file, 
                         {"table_name_way_selection": f"{name}_way_selection",
@@ -215,8 +227,7 @@ if __name__ == "__main__":
     
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
-    # runs 7 hours for Berlin without metadataquery, img download and classification
-    cg = config.berlin_prio
+    cg = config.dresden_small
     data_path = os.path.join(cg["data_root"], cg["name"])
     
     dbname = getattr(db, cg["database"])
@@ -228,18 +239,19 @@ if __name__ == "__main__":
     # TODO: include pano images?
     # TODO: write directly into DB (without csv?)
     # query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
-    img_to_db(dbname, data_path, cg["name"])
+    #img_to_db(dbname, data_path, cg["name"])
     
     ##### ---- prepare line segments ---- ######
     custom_sql_way_selection = False if "custom_sql_way_selection" not in cg.keys() else cg["custom_sql_way_selection"]
     custom_attrs = {} if "custom_attrs" not in cg.keys() else cg["custom_attrs"]
+    additional_id_column = "" if "additional_id_column" not in cg.keys() else cg["additional_id_column"]
     prepare_line_segments(dbname, cg["name"], cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], 
                  min_road_length=cg["min_road_length"], segment_length=cg["segment_length"],
-                 custom_sql_way_selection = custom_sql_way_selection, custom_attrs=custom_attrs)
+                 custom_sql_way_selection = custom_sql_way_selection, custom_attrs=custom_attrs, additional_id_column=additional_id_column)
     
     ##### ---- match images to road segments ---- ######
     crs = None if "crs" not in cg.keys() else cg["crs"]
-    match_img_to_roads(dbname, cg["name"], cg["dist_from_road"], crs=crs)
+    #match_img_to_roads(dbname, cg["name"], cg["dist_from_road"], crs=crs)
     
     # limit number of images per road segment?
     if cg["n_per_segment"]:
@@ -256,17 +268,18 @@ if __name__ == "__main__":
     
     #### ---- add classification information ---- ####
     # TODO: best way to integrate classification model?
+    custom_road_scenery_join = False if "custom_road_scenery_join" not in cg.keys() else cg["custom_road_scenery_join"]
     img_classification(dbname, cg["data_root"], cg["name"], cg["pred_path"], run=cg["run"], point_table=point_table,
-                pano=False, road_scenery_path=cg["road_scenery_pred_path"])
+                pano=False, road_scenery_path=cg["road_scenery_pred_path"], custom_road_scenery_join=custom_road_scenery_join)
     
     #### ---- aggregation algorithm ---- ####
-    # split geoms if multiple road types are represented by one
+    # create table with road partitions (i.e., each road type for each geoemtry)
     custom_road_type_separation = False if "custom_road_type_separation" not in cg.keys() else cg["custom_road_type_separation"]
     roadtype_separation(dbname, cg["name"], custom_road_type_separation=custom_road_type_separation)
 
-    
     aggregate_by_road_segment(dbname, cg["name"], point_table=point_table, 
-                              min_road_length=cg["min_road_length"], segments_per_group=cg["segments_per_group"])
+                              min_road_length=cg["min_road_length"], segments_per_group=cg["segments_per_group"], 
+                              additional_id_column=additional_id_column)
 
     # write result to shape file
     output_file = os.path.join(data_path, cg["run"], f"{cg["name"]}_pred.shp")
