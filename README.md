@@ -6,6 +6,8 @@ This repository provides the code for the SurfaceAI pipeline.
 
 Currently the classification models are not yet integrated and a csv file path `pred_path` to surface type and quality image classification model results is expected in the config file, as well as a `road_scenery_pred_path` to the road scene classification model results.
 
+Find the [paper](TODO) of this publication here.
+
 ## Getting started
 
 ### Prerequisites
@@ -38,6 +40,8 @@ Start the pipeline by running
 ## Implementation details
 
 ### Pipeline:
+
+![Schematic illustration of model pipeline](img/model_pipeline.png)
 
 - setup Postgres database with PostGIS and osmosis extension
 - query all image metadata within the provided bounding box from Mapillary and write to database
