@@ -1,6 +1,6 @@
 
 ---- join img and groups and aggregate with majority vote
-ALTER TABLE {table_name_group_predictions}
+ALTER TABLE {name}_group_predictions
 ADD COLUMN if not exists avg_quality_pred FLOAT,
 add column if not exists way_length float,
 add column if not exists conf_score float,
@@ -17,7 +17,7 @@ from {table_name_point_selection} img
     GROUP BY
         img.way_id, img.group_num, img.road_type_pred
 )
-UPDATE {table_name_group_predictions} ways
+UPDATE {name}_group_predictions ways
 SET n_segments = SC.n_segments,
 	way_length = ST_Length(ways.geometry),
 	conf_score =  ways.avg_rt_share * (cast(segment_vote_count as float) /ceil(ST_Length(ways.geometry)/20) )
@@ -25,7 +25,7 @@ from SegmentCounts SC
 WHERE ways.id = SC.way_id and ways.group_num = SC.group_num and ways.road_type_pred = SC.road_type_pred;
 
 
-delete from {table_name_group_predictions} ways
+delete from {name}_group_predictions ways
 where (ways.way_length / ways.n_segments  > 30) 
     or (cast(ways.segment_vote_count as float) / cast( ways.n_segments as float) < 0.5) 
     or sum_img_counts < 3;
@@ -40,14 +40,14 @@ WITH RankedRows AS (
         *,
         ROW_NUMBER() OVER (PARTITION BY id, group_num, road_type_pred ORDER BY conf_score DESC) AS row_num
     FROM
-        {table_name_group_predictions}
+        {name}_group_predictions
 ),
 RowsToKeep AS (
     SELECT *
     FROM RankedRows
     WHERE row_num = 1
 )
-DELETE FROM {table_name_group_predictions}
+DELETE FROM {name}_group_predictions
 WHERE (id, group_num, conf_score) NOT IN (
     SELECT id, group_num, conf_score
     FROM RowsToKeep
@@ -59,7 +59,7 @@ WHERE (id, group_num, conf_score) NOT IN (
 WITH QualityAvg AS (
     SELECT way_id, group_num, AVG(img.quality_pred) AS avg_quality_pred, road_type_pred, type_pred
     FROM {table_name_point_selection} img GROUP BY way_id, group_num, road_type_pred, type_pred)
-UPDATE {table_name_group_predictions} ways
+UPDATE {name}_group_predictions ways
 SET avg_quality_pred = QA.avg_quality_pred
 FROM QualityAvg QA
 WHERE ways.id = QA.way_id and ways.road_type_pred = QA.road_type_pred and ways.type_pred = QA.type_pred and ways.group_num=QA.group_num;
@@ -68,11 +68,11 @@ WHERE ways.id = QA.way_id and ways.road_type_pred = QA.road_type_pred and ways.t
 -- add groups with no value as placeholders
 with MissingGroups as (
 select *
-from {table_name_eval_groups} gr
+from {name}_eval_groups gr
 where (gr.id || '_' || gr.part_id  || '_' || gr.group_num)  not in 
-(select (gp.id || '_' || gp.part_id  || '_' || gp.group_num)  from {table_name_group_predictions} gp)
+(select (gp.id || '_' || gp.part_id  || '_' || gp.group_num)  from {name}_group_predictions gp)
 )
-insert into {table_name_group_predictions} ({grouping_ids}, road_type, geometry) -- elem_nr, id, group_num, part_id,
+insert into {name}_group_predictions ({grouping_ids}, road_type, geometry) -- elem_nr, id, group_num, part_id,
 select {grouping_ids}, road_type, geometry from MissingGroups;
 
 -- only keep one prediction for each way (if multiple road types are specified as target, i.e., via partition id
@@ -86,7 +86,7 @@ CREATE TABLE RowsToKeep as
                PARTITION BY {grouping_ids}
                ORDER BY segment_vote_count DESC, avg_img_counts DESC
            ) AS row_num
-    FROM {table_name_group_predictions}
+    FROM {name}_group_predictions
 )  
     SELECT {grouping_ids}, type_pred, 
     segment_vote_count, avg_rt_share, conf_score, 
@@ -98,8 +98,8 @@ CREATE TABLE RowsToKeep as
     WHERE row_num = 1
  ;
 
-DROP TABLE  {table_name_group_predictions};
-ALTER TABLE RowsToKeep RENAME TO {table_name_group_predictions};
+DROP TABLE  {name}_group_predictions;
+ALTER TABLE RowsToKeep RENAME TO {name}_group_predictions;
 
 
 

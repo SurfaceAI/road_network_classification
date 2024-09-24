@@ -1,36 +1,39 @@
 -- create a grouping variable in segments
-ALTER TABLE {table_name_segmented_ways} 
+ALTER TABLE {name}_segmented_ways
 ADD COLUMN if not exists group_num INT;
 
---alter table {table_name_point_selection} drop column group_num;
+--alter table {name}_point_selection drop column group_num;
 
 -- Update the table to set the group number based on segment_number
-UPDATE {table_name_segmented_ways}
+UPDATE {name}_segmented_ways
 SET group_num = segment_number / {segments_per_group};
 
 
-drop table if exists {table_name_eval_groups} ;
-drop table if exists {table_name_group_predictions} ;
+drop table if exists {name}_eval_groups ;
+drop table if exists {name}_group_predictions ;
 
 ---- new table: eval_groups with joined geometry
--- TODO: remove partition id
-CREATE TABLE {table_name_eval_groups} AS
+CREATE TABLE {name}_eval_groups AS
 WITH GroupedSegments AS (
     SELECT
         {grouping_ids},
-        -- id,
-        -- part_id,
-        -- group_num,
         road_type,
         ST_LineMerge(ST_Union(geom)) AS geometry
-    FROM {table_name_segmented_ways}
+    FROM (
+	    select {additional_id_column}ways.id, ways.group_num, ways.segment_number, 
+        part.part_id, part.road_type, part.geom
+	    from {name}_segmented_ways ways
+	    join {name}_partitions part
+	    on ways.segment_id=part.segment_id
+	    order by (ways.id, part.part_id, ways.segment_number)
+    ) as partitions
     GROUP BY {grouping_ids}, road_type
-    --GROUP BY elem_nr, id, part_id, group_num, road_type
 )
 SELECT *
 FROM GroupedSegments;
 
-CREATE INDEX {table_name_eval_groups}_idx ON {table_name_eval_groups} ({grouping_ids});
+
+CREATE INDEX {name}_eval_groups_idx ON {name}_eval_groups ({grouping_ids});
 
 -- add group num to images
 

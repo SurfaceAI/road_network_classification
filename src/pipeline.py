@@ -5,24 +5,19 @@ from pathlib import Path
 
 import pandas as pd
 
-import psycopg2
-from psycopg2 import sql
-from psycopg2.extras import DictCursor
-
 import logging 
 
+## local modules
 import utils 
 import config
 import src.constants as const
 
-sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent))
-
+root_path = str(Path(os.path.abspath(__file__)).parent.parent)
+sys.path.append(root_path)
 import database_credentials as db
 
 
 def setup_database(dbname, pbf_path):
-        # TODO: custom database
-        # does the db already exist?
         res = subprocess.run(r"psql -lqt | cut -d \| -f 1 | grep -w " + dbname, shell = True, executable="/bin/bash")
         if res.returncode == 0:
             logging.info(f"database already exists. Skip DB creation step.")
@@ -65,7 +60,8 @@ def img_to_db(dbname, data_path, name):
     #image_selection.drop("date", axis=1)
     image_selection.to_csv(temp_path, index=False)
     
-    utils.execute_sql_query(dbname, const.SQL_IMGS_TO_DB, 
+    query_file = os.path.join(root_path, const.SQL_IMGS_TO_DB)
+    utils.execute_sql_query(dbname, query_file,
                       {"table_name": f"{name}", 
                        "absolute_path": temp_path})
     os.remove(temp_path)
@@ -77,6 +73,7 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, min_road
 
     logging.info(f"create linestrings in bounding box")
     query_file = const.SQL_WAY_SELECTION if not custom_sql_way_selection else custom_sql_way_selection
+    query_file = os.path.join(root_path, query_file)
     additional_id_column = f"{additional_id_column}," if additional_id_column != "" else "" # add comma
 
     # TODO: This step takes quite long for OSM if bbox is large - possible to speed up?
@@ -86,7 +83,8 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, min_road
                        })
 
     logging.info(f"cut lines into segments of length {segment_length}")
-    utils.execute_sql_query(dbname, const.SQL_SEGMENT_WAYS, 
+    query_file = os.path.join(root_path, const.SQL_SEGMENT_WAYS)
+    utils.execute_sql_query(dbname, query_file, 
                       {"table_name_way_selection": f"{name}_way_selection",
                        "table_name_segmented_ways": f"{name}_segmented_ways",
                        "segment_length": segment_length,
@@ -100,9 +98,10 @@ def prepare_line_segments(dbname, name, minLon, minLat, maxLon, maxLat, min_road
 
 
 def img_selection(dbname, name, n_per_segment):
-    print("select images")
+    logging.info("select images")
 
-    utils.execute_sql_query(dbname, const.SQL_IMG_SELECTION, 
+    query_file = os.path.join(root_path, const.SQL_IMG_SELECTION)
+    utils.execute_sql_query(dbname, query_file, 
                     {"table_name": f"{name}", 
                     "table_name_point_selection": f"{name}_point_selection",
                     "n_per_segment": n_per_segment})
@@ -113,11 +112,10 @@ def match_img_to_roads(dbname, name, dist_from_road, crs=None):
 
     crs = 3035 if crs is None else crs
 
-    utils.execute_sql_query(dbname, const.SQL_MATCH_IMG_ROADS, 
-                      {"table_name": f"{name}",
+    query_file = os.path.join(root_path, const.SQL_MATCH_IMG_ROADS)
+    utils.execute_sql_query(dbname, query_file, 
+                      {"name": name,
                        "dist_from_road": dist_from_road,
-                       "table_name_point_selection": f"{name}_point_selection",
-                       "table_name_segmented_ways": f"{name}_segmented_ways",
                        "crs": crs})
     logging.info("matching complete")
     
@@ -144,7 +142,8 @@ def img_download(data_path, run, dbname, img_size, dest_folder_name = "imgs", cs
                           parallel=parallel)
 
 
-def img_classification(dbname, data_path, name, pred_path, run, point_table, pano=False, road_scenery_path=False, custom_road_scenery_join=False):
+def img_classification(dbname, data_path, name, pred_path, run, point_table, 
+                       pano=False, road_scenery_path=False, custom_road_scenery_join=False):
     logging.info("add surface classification results to db")
     pred = utils.format_predictions(pd.read_csv(pred_path, dtype={"Image": str, "Level_1":str}), pano=pano)
     folder = os.path.join(os.getcwd(),data_path, name, run)
@@ -154,6 +153,7 @@ def img_classification(dbname, data_path, name, pred_path, run, point_table, pan
     logging.info(f"{csv_path} written")
 
     query_file = const.SQL_JOIN_MODEL_PRED_DIR if pano else const.SQL_JOIN_MODEL_PRED
+    query_file = os.path.join(root_path, query_file)
 
     utils.execute_sql_query(dbname, query_file, 
                     {"table_name_point_selection": point_table,
@@ -161,6 +161,8 @@ def img_classification(dbname, data_path, name, pred_path, run, point_table, pan
                     "pano": pano})
 
     query_file = const.SQL_JOIN_SCENERY_PRED if not custom_road_scenery_join else custom_road_scenery_join
+    query_file = os.path.join(root_path, query_file)
+
     if road_scenery_path:
         logging.info("add scenery results to db")
         pred_scene = utils.format_scenery_predictions(pd.read_csv(road_scenery_path, dtype={"Image": str}), pano=pano)
@@ -176,25 +178,26 @@ def img_classification(dbname, data_path, name, pred_path, run, point_table, pan
 
 def aggregate_by_road_segment(dbname, name, point_table, min_road_length, segments_per_group, additional_id_column=""):
     logging.info("aggregate by road segment")
-    additional_id_column = f"ways.{additional_id_column}," if additional_id_column != "" else "" # add comma
+    additional_id_column = f"{additional_id_column}," if additional_id_column != "" else "" # add comma
     grouping_ids = f"{additional_id_column}id,part_id,group_num"
-    params = {      "additional_id_column": additional_id_column,
+    additional_id_column = f"ways.{additional_id_column}" if additional_id_column != "" else ""
+    params = {      "name": name,
+                    "additional_id_column": additional_id_column,
                     "grouping_ids": grouping_ids,
                     "table_name_point_selection": point_table,
-                     "table_name_segmented_ways": f"{name}_segmented_ways",
-                    "table_name_way_selection": f"{name}_way_selection",
-                    "table_name_eval_groups": f"{name}_eval_groups",
-                    "table_name_group_predictions": f"{name}_group_predictions",
                     "segments_per_group" : segments_per_group,
                     "min_road_length": min_road_length}
 
     query_file = const.SQL_AGGREGATE_ON_ROADS.format(1)
+    query_file = os.path.join(root_path, query_file)
     utils.execute_sql_query(dbname, query_file, params)
 
     query_file = const.SQL_AGGREGATE_ON_ROADS.format(2)
+    query_file = os.path.join(root_path, query_file)
     utils.execute_sql_query(dbname, query_file, params)
 
     query_file = const.SQL_AGGREGATE_ON_ROADS.format(3)
+    query_file = os.path.join(root_path, query_file)
     utils.execute_sql_query(dbname, query_file, params)
 
     logging.info("aggregation complete")
@@ -208,14 +211,13 @@ def img_ids_to_csv(data_path, db_table, file_name):
 
 def roadtype_separation(dbname, name, custom_road_type_separation):
     query_file = const.SQL_ASSIGN_ROAD_TYPES if not custom_road_type_separation else custom_road_type_separation
-    
     if query_file != None:
+        query_file = os.path.join(root_path, query_file)
         logging.info("create partitions for each road type of a geometry in a separate table")
 
         utils.execute_sql_query(dbname, query_file, 
-                        {"table_name_way_selection": f"{name}_way_selection",
-                        "table_name_img_selection": f"{name}",
-                        "table_name_segmented_ways": f"{name}_segmented_ways"})
+                        {"name": name,
+                         "table_name_img_selection": name})
         logging.info("road type separation complete")
     else:
         logging.info("no road type separation needed")
@@ -224,12 +226,15 @@ def roadtype_separation(dbname, name, custom_road_type_separation):
 
 
 if __name__ == "__main__":
-    
+
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
-    cg = config.dresden_small
-    data_path = os.path.join(cg["data_root"], cg["name"])
+    if len(sys.argv) > 1:
+        cg = eval(f"config.{sys.argv[1]}")
+    else:
+        cg = config.dresden_small
     
+    data_path = os.path.join(root_path, cg["data_root"], cg["name"])
     dbname = getattr(db, cg["database"])
 
     # setup database if it does not exist
@@ -239,7 +244,7 @@ if __name__ == "__main__":
     # TODO: include pano images?
     # TODO: write directly into DB (without csv?)
     # query_img_meta_in_bbox(data_path, cg["minLon"], cg["minLat"], cg["maxLon"], cg["maxLat"], cg["name"])
-    #img_to_db(dbname, data_path, cg["name"])
+    img_to_db(dbname, data_path, cg["name"])
     
     ##### ---- prepare line segments ---- ######
     custom_sql_way_selection = False if "custom_sql_way_selection" not in cg.keys() else cg["custom_sql_way_selection"]
@@ -251,7 +256,7 @@ if __name__ == "__main__":
     
     ##### ---- match images to road segments ---- ######
     crs = None if "crs" not in cg.keys() else cg["crs"]
-    #match_img_to_roads(dbname, cg["name"], cg["dist_from_road"], crs=crs)
+    match_img_to_roads(dbname, cg["name"], cg["dist_from_road"], crs=crs)
     
     # limit number of images per road segment?
     if cg["n_per_segment"]:
@@ -264,7 +269,7 @@ if __name__ == "__main__":
     # img_ids_to_csv(data_path, db_table=f"{cg["name"]}", file_name = cg["img_selection_csv_path"])
     
     ##### ---- download images ---- ######
-    # img_download(data_path, cg["run"], dbname, db_table=point_table, img_size=cg["img_size"])
+    img_download(data_path, cg["run"], dbname, db_table=point_table, img_size=cg["img_size"])
     
     #### ---- add classification information ---- ####
     # TODO: best way to integrate classification model?

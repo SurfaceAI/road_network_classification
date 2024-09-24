@@ -38,6 +38,8 @@ ways_selection.tags -> 'cycleway:right' as cycleway_right,
 ways_selection.tags -> 'cycleway:left' as cycleway_left,
 ways_selection.tags -> 'cycleway:both' as cycleway_both,
 ways_selection.tags -> 'sidewalk' as sidewalk,
+ways_selection.tags -> 'sidewalk:right' as sidewalk_right,
+ways_selection.tags -> 'sidewalk:left' as sidewalk_left,
 ways_selection.tags -> 'foot' as foot,
 (select ST_LineFromMultiPoint( ST_Collect(ns.geom_transformed order by wns.sequence_id))  AS geom
 from node_selection as ns 

@@ -6,7 +6,7 @@ SELECT
   captured_at,
   st_transform(geom, {crs}) AS geom
 FROM
-  {table_name};
+  {name};
  
 CREATE INDEX temp_transformed_idx ON temp_transformed USING GIST(geom);
 
@@ -20,12 +20,12 @@ CREATE TABLE temp_table AS (
       p.tile_id,
       p.sequence_id,
       p.captured_at,
-      n.way_id,
-      n.segment_id,
+      seg.way_id,
+      seg.segment_id,
       p.geom,
       to_timestamp(p.captured_at / 1000) as captured_at_timestamp,
-      ST_ClosestPoint(n.geom, p.geom) AS geom_snapped,
-      ST_Distance(n.geom, p.geom) AS dist
+      ST_ClosestPoint(seg.geom, p.geom) AS geom_snapped,
+      ST_Distance(seg.geom, p.geom) AS dist
     FROM
       temp_transformed AS p
       CROSS JOIN LATERAL (
@@ -34,17 +34,36 @@ CREATE TABLE temp_table AS (
           l.id AS way_id,
           l.segment_id
         FROM
-          {table_name_segmented_ways} AS l
+          {name}_segmented_ways AS l
         ORDER BY
           l.geom <-> p.geom -- order by distance
         LIMIT 1
-      ) AS n
+      ) AS seg
   ) AS subquery
   WHERE dist <= {dist_from_road} -- only consider a road a match if within x meters
 );
-DROP TABLE  {table_name};
-ALTER TABLE temp_table RENAME TO  {table_name};
+-- img within close proximity of how many roads?
+ALTER TABLE temp_table ADD COLUMN num_closeby_ways INT;
+
+CREATE TEMP TABLE CloseByRoads AS
+  SELECT img.img_id, COUNT(*) AS num_closeby_ways
+  FROM temp_table AS img
+  JOIN {name}_way_selection AS ws
+  ON ST_DWithin(img.geom, ws.geom, 10)
+  GROUP BY img.img_id;
+
+CREATE INDEX CloseByRoads_idx ON CloseByRoads (img_id);
+
+UPDATE temp_table
+SET num_closeby_ways = (
+  SELECT num_closeby_ways
+  FROM CloseByRoads
+  WHERE temp_table.img_id = CloseByRoads.img_id
+);
+
+DROP TABLE  {name};
+ALTER TABLE temp_table RENAME TO  {name};
 
 DROP TABLE  temp_transformed;
 
-CREATE INDEX {table_name}_idx ON {table_name} USING GIST(geom);
+CREATE INDEX {name}_idx ON {name} USING GIST(geom);

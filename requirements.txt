@@ -1,0 +1,9 @@
+numpy
+pandas
+geopandas
+mercantile
+vt2geojson
+psycopg2
+pillow
+equilib
+tqdm

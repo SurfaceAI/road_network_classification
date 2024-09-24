@@ -23,7 +23,8 @@ import concurrent.futures
 import geopandas as gpd
 #import matplotlib.pyplot as plt
 
-sys.path.append(str(Path(os.path.abspath(__file__)).parent.parent))
+root_path=str(Path(os.path.abspath(__file__)).parent.parent)
+sys.path.append(root_path)
 
 import database_credentials as db
 
@@ -31,7 +32,8 @@ import config
 import constants as const
 
 # set access tokens
-with open(config.token_path, "r") as file:
+token_path = os.path.join(root_path, config.token_path)
+with open(token_path, "r") as file:
     # access_token = tokenfile.readlines()
     access_tokens = [line.strip() for line in file.readlines()]
 current_token = 0

@@ -1,11 +1,11 @@
 ALTER TABLE {table_name_point_selection} ADD column if not exists group_num INT;
 
-create index if not exists segment_idx on {table_name_point_selection}(segment_id);
-create index if not exists {table_name_segmented_ways}_ids_idx on {table_name_segmented_ways}(segment_id);
+create index if not exists segment_idx on {table_name_point_selection} (segment_id);
+create index if not exists {name}_segmented_ways_ids_idx on {name}_segmented_ways(segment_id);
 
 -- join based on segment - not partition! (we want to seperate road types later)
-with ways as (select * from {table_name_segmented_ways})
-update {table_name_point_selection} img
+with ways as (select * from {name}_segmented_ways)
+update {table_name_point_selection}  img
 set group_num = (select group_num from ways where ways.segment_id = img.segment_id);
 
 
@@ -32,7 +32,7 @@ from {table_name_point_selection} img
         COUNT(*) AS vote_count,
         AVG(img.type_class_prob) AS avg_class_prob
     FROM
-        {table_name_point_selection} img
+        {table_name_point_selection}  img
     WHERE img.type_pred IS NOT NULL -- and img.type_class_prob > 0.8
     GROUP BY
         img.way_id, img.group_num, img.segment_id, img.road_type_pred, img.type_pred
@@ -90,15 +90,14 @@ TopRankedVotes AS (
         GRV.*,
 		ways.road_type,
         ways.geometry
-    INTO TABLE {table_name_group_predictions}
+    INTO TABLE {name}_group_predictions
     FROM
-        {table_name_eval_groups} ways
+        {name}_eval_groups ways
     JOIN
         GroupRankedVotes GRV
     ON
-        ways.id = GRV.id and ways.group_num = GRV.group_num;
-        -- and 
-        --(ways.road_type=GRV.road_type_pred or ways.road_type is null);
+        ways.id = GRV.id and ways.group_num = GRV.group_num and 
+        (ways.road_type=GRV.road_type_pred or ways.road_type is null);
         -- now we filter by partition (i.e., road type): only keep those where target road_type matches the prediction (or where there is no target)
    --WHERE
    --      GRV.rank = 1; 
