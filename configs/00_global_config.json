@@ -1,0 +1,14 @@
+{
+    "mapillary_token_path" : "mapillary_token.txt",
+    "parallel_batch_size" : 100,
+    "data_root" : "data",
+    "database": "database",
+    "pbf_path" : "data/germany-latest.osm.pbf",
+    "img_size": "thumb_2048_url",
+    "n_per_segment" : null,
+    "dist_from_road": 10,
+    "segment_length": 20,
+    "min_road_length" : 10,
+    "segments_per_group": 100,
+    "img_selection_csv_path": "img_selection.csv"
+}

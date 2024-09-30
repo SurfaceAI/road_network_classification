@@ -1,0 +1,18 @@
+{
+    "name": "berlin_prio_vset",
+    "run": "run10",
+    "minLon": 13.35108089,
+    "minLat": 52.454059600,
+    "maxLon": 13.43233203,
+    "maxLat": 52.5186462,
+    "database": "databaseBerlinPrio",
+    "pbf_path": null,
+    "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
+    "custom_road_type_separation": "src/sql/assign_road_types_berlin.sql",
+    "additional_id_column": "elem_nr",
+    "crs": 25833,
+    "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
+    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_vset_all-20240716_151503.csv",
+    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_vset_all-20240917_184531.csv",
+    "custom_road_scenery_join": "src/sql/join_scenery_pred_berlin.sql",
+}

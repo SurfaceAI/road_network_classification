@@ -32,11 +32,12 @@ import config
 import constants as const
 
 # set access tokens
-token_path = os.path.join(root_path, config.token_path)
-with open(token_path, "r") as file:
-    # access_token = tokenfile.readlines()
-    access_tokens = [line.strip() for line in file.readlines()]
-current_token = 0
+def get_access_token(token_path):
+    token_path = os.path.join(root_path, token_path)
+    with open(token_path, "r") as file:
+        # access_token = tokenfile.readlines()
+        access_tokens = [line.strip() for line in file.readlines()]
+        return access_tokens[0]
 
 
 def tile_center(xtile, ytile, zoom):
@@ -59,44 +60,7 @@ def tile_center(xtile, ytile, zoom):
     return lon, lat
 
 
-def get_tile_images(tile):
-    """Get information about images (img_id, creator_id, captured_at, is_pano, organization_id) contained within given tile (based on tiles endpoint)
-    This does not include coordinates of images!
-
-    Args:
-        tile(mercantile.Tile): mercantile tile
-
-    Returns:
-        dict: all images within tile as json (dict) including properties: img_id, creator_id, captured_at, is_pano, organization_id.
-    """
-    global current_token
-
-    response = requests.get(
-        const.MAPILLARY_TILE_URL.format(
-            const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
-        ),
-        params={"access_token": access_tokens[current_token]},
-    )
-
-    # if rate limit is reached, try with other access token
-    if response.status_code != 200:
-        print(response.status_code)
-        print(response.reason)
-        current_token = abs(current_token - 1)  # switch between 0 and 1 and try again
-        response = requests.get(
-            const.MAPILLARY_TILE_URL.format(
-                const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
-            ),
-            params={"access_token": access_tokens[current_token]},
-        )
-
-    # return response
-    return vt_bytes_to_geojson(
-        response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
-    )
-
-
-def get_images_metadata(tile):
+def get_images_metadata(tile, mapillary_token):
     """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
     This includes coordinates of images!
 
@@ -106,7 +70,6 @@ def get_images_metadata(tile):
     Returns:
         tuple(list, list(list))): Metadata of all images within tile, including coordinates, as tuple: first element is list with column names ("header"). Second element is a list of list, each list representing one image.
     """
-    global current_token
     header = [
         "tile_id",
         "id",
@@ -123,7 +86,7 @@ def get_images_metadata(tile):
         const.MAPILLARY_TILE_URL.format(
             const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
         ),
-        params={"access_token": access_tokens[current_token]},
+        params={"access_token": mapillary_token},
     )
     data = vt_bytes_to_geojson(
         response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
@@ -149,7 +112,7 @@ def get_images_metadata(tile):
     return (header, output)
 
 
-def download_image(img_id, img_size, img_folder):
+def download_image(img_id, img_size, img_folder, mapillary_token):
     """Download image file based on img_id and save to given image_folder
 
     Args:
@@ -161,7 +124,7 @@ def download_image(img_id, img_size, img_folder):
         const.MAPILLARY_GRAPH_URL.format(img_id),
         params={
             "fields": img_size,
-            "access_token": access_tokens[current_token],
+            "access_token": mapillary_token,
         },
     )
 
@@ -182,7 +145,8 @@ def download_image(img_id, img_size, img_folder):
             print(f"no image size {img_size} for image {img_id}")
 
 
-def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat, userid, no_pano):
+def query_and_write_img_metadata(tiles, out_path, mapillary_token, 
+                                 minLon, minLat, maxLon, maxLat, userid, no_pano):
     """Write metadata of all images in tiles to csv
 
     Args:
@@ -194,7 +158,7 @@ def query_and_write_img_metadata(tiles, out_path, minLon, minLat, maxLon, maxLat
         csvwriter = csv.writer(csvfile)
         for i in tqdm(range(0, len(tiles))):
             tile = tiles.iloc[i,]
-            header, output = get_images_metadata(tile)
+            header, output = get_images_metadata(tile, mapillary_token)
             if i == 0:
                 csvwriter.writerow(header)
             for row in output:
@@ -232,13 +196,12 @@ def img_ids_from_dbtable(db_table, dbname):
     conn.close()
     return img_ids
 
-def download_images(image_ids, img_folder, img_size, parallel=True):
+def download_images(image_ids, img_folder, img_size, mapillary_token, parallel_batch_size, parallel=True):
     start = time.time()
     os.makedirs(img_folder, exist_ok=True)
 
     if parallel:
         # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
-        parallel_batch_size = config.parallel_batch_size
         if (parallel_batch_size is None) or (parallel_batch_size > len(image_ids)):
             parallel_batch_size = len(image_ids)
         for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
@@ -248,11 +211,12 @@ def download_images(image_ids, img_folder, img_size, parallel=True):
                              if batch_start+parallel_batch_size < len(image_ids) 
                              else len(image_ids))
                 
-                executor.map(download_image, image_ids[batch_start:batch_end], repeat(img_size), repeat(img_folder))
+                executor.map(download_image, image_ids[batch_start:batch_end], 
+                             repeat(img_size), repeat(img_folder), repeat(mapillary_token))
     else:
         for i in tqdm(range(0, len(image_ids))):
             download_image(
-                int(image_ids[i]), img_size, img_folder
+                int(image_ids[i]), img_size, img_folder, mapillary_token
             )
     print(f"{round((time.time()-start )/ 60)} mins")
 
@@ -300,10 +264,10 @@ def clean_surface(surface):
         return surface
 
 
-def query_coords(img_id):
+def query_coords(img_id, mapillary_token):
     response = requests.get(
     const.MAPILLARY_GRAPH_URL.format(img_id),
-    params={"access_token": access_tokens[current_token],
+    params={"access_token": mapillary_token,
             "fields" : "geometry"},
     )
     data = response.json()
@@ -376,7 +340,7 @@ def compute_yaw(camera_angle, direction_of_travel):
 
     
 
-def compute_direction_of_travel(img_id, k_neighbors=2):
+def compute_direction_of_travel(img_id, mapillary_token, k_neighbors=2):
     sequence_id = query_sequenceid(img_id) # TODO: provide with initial query?
     # get images before and after
     sequence = query_sequence(sequence_id) # https://graph.mapillary.com/image_ids?access_token=MLY|5381465351976670|a4ac3be1ecdebf1885b0790b8efec369&sequence_id=IfrlQqGaVsbKZm8ShcBO0u
@@ -386,7 +350,7 @@ def compute_direction_of_travel(img_id, k_neighbors=2):
     # get coords of all neighbors
     points = []
     for img in sequence_neighbors:
-        points.append(query_coords(img))
+        points.append(query_coords(img), mapillary_token)
     return compute_compass_angle(points)
 
 
@@ -416,7 +380,8 @@ def compute_compass_angle(points):
 
    
 
-def pano_to_persp(in_path, out_path, img_id, cangle=None, direction_of_travel=None, persp_height = 480, persp_width = 640):
+def pano_to_persp(in_path, out_path, img_id, mapillary_token, 
+                  cangle=None, direction_of_travel=None, persp_height = 480, persp_width = 640):
     """ Transform panorama image to two perspective images that face the direction of travel
     Args: in_path (str): path to panorama image
             out_path (str): path to save perspective images
@@ -431,7 +396,7 @@ def pano_to_persp(in_path, out_path, img_id, cangle=None, direction_of_travel=No
         cangle = query_cangle(img_id)
 
     if direction_of_travel is None:
-        direction_of_travel = compute_direction_of_travel(img_id)
+        direction_of_travel = compute_direction_of_travel(img_id, mapillary_token)
     yaw = compute_yaw(cangle, direction_of_travel)
 
     # rotations

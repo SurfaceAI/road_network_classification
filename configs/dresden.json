@@ -1,0 +1,10 @@
+{
+    "name": "dresden",
+    "run": "run1",
+    "minLon": 13.654175,
+    "minLat": 51.00662,
+    "maxLon": 13.828583,
+    "maxLat": 51.094676,
+    "pred_path": "",
+    "road_scenery_pred_path": ""
+}

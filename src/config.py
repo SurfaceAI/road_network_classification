@@ -1,5 +1,3 @@
-import os
-
 # mapillary token file
 token_path = "mapillary_token.txt"
 
