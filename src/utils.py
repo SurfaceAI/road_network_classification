@@ -6,18 +6,15 @@ import numpy as np
 import mercantile
 import requests
 from vt2geojson.tools import vt_bytes_to_geojson
-import time
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import DictCursor
 from pathlib import Path
+import logging
+import pandas as pd
 
 from PIL import Image
 import equilib
-
-from itertools import repeat
-from tqdm import tqdm
-import concurrent.futures
 
 
 import geopandas as gpd
@@ -31,7 +28,6 @@ import database_credentials as db
 import config
 import constants as const
 
-# set access tokens
 def get_access_token(token_path):
     token_path = os.path.join(root_path, token_path)
     with open(token_path, "r") as file:
@@ -60,118 +56,8 @@ def tile_center(xtile, ytile, zoom):
     return lon, lat
 
 
-def get_images_metadata(tile, mapillary_token):
-    """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
-    This includes coordinates of images!
-
-    Args:
-        tile(mercantile.Tile): mercantile tile
-
-    Returns:
-        tuple(list, list(list))): Metadata of all images within tile, including coordinates, as tuple: first element is list with column names ("header"). Second element is a list of list, each list representing one image.
-    """
-    header = [
-        "tile_id",
-        "id",
-        "sequence_id",
-        "captured_at",
-        "compass_angle",
-        "is_pano",
-        "creator_id",
-        "lon",
-        "lat",
-    ]
-    output = list()
-    response = requests.get(
-        const.MAPILLARY_TILE_URL.format(
-            const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
-        ),
-        params={"access_token": mapillary_token},
-    )
-    data = vt_bytes_to_geojson(
-        response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
-    )
-
-    # a feature is a point/image
-    # TODO: can this be speed up?
-    for feature in data["features"]:
-        output.append(
-            [
-                str(int(tile.x)) + "_" + str(int(tile.y)) + "_" + str(int(tile.z)),
-                feature["properties"]["id"],
-                feature["properties"]["sequence_id"],
-                feature["properties"]["captured_at"],
-                feature["properties"]["compass_angle"],
-                feature["properties"]["is_pano"],
-                feature["properties"]["creator_id"],
-                feature["geometry"]["coordinates"][0],
-                feature["geometry"]["coordinates"][1],
-            ]
-        )
-
-    return (header, output)
 
 
-def download_image(img_id, img_size, img_folder, mapillary_token):
-    """Download image file based on img_id and save to given image_folder
-
-    Args:
-        img_id (str): ID of image to download
-        img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-        img_folder (str): path of folder to save image to
-    """
-    response = requests.get(
-        const.MAPILLARY_GRAPH_URL.format(img_id),
-        params={
-            "fields": img_size,
-            "access_token": mapillary_token,
-        },
-    )
-
-    if response.status_code != 200:
-        print(response.status_code)
-        print(response.reason)
-        print(f"image_id: {img_id}")
-    else:
-        data = response.json()
-        if img_size in data:
-            image_url = data[img_size]
-
-            # image: save each image with ID as filename
-            image_data = requests.get(image_url, stream=True).content
-            with open(os.path.join(img_folder, f"{img_id}.jpg"), "wb") as handler:
-                handler.write(image_data)
-        else:
-            print(f"no image size {img_size} for image {img_id}")
-
-
-def query_and_write_img_metadata(tiles, out_path, mapillary_token, 
-                                 minLon, minLat, maxLon, maxLat, userid, no_pano):
-    """Write metadata of all images in tiles to csv
-
-    Args:
-        tiles (df): dataframe with tiles and columns x,y,z,lat,lon
-        out_path (str): path to save csv with image metadata of tile to
-    """
-    # write metadata of all potential images to csv
-    with open(out_path, "w", newline="") as csvfile:
-        csvwriter = csv.writer(csvfile)
-        for i in tqdm(range(0, len(tiles))):
-            tile = tiles.iloc[i,]
-            header, output = get_images_metadata(tile, mapillary_token)
-            if i == 0:
-                csvwriter.writerow(header)
-            for row in output:
-                # filter img
-                if ((row[header.index("lon")] > minLon) and (row[header.index("lon")] < maxLon) 
-                    and (row[header.index("lat")] > minLat) and (row[header.index("lat")] < maxLat)):
-
-                    if no_pano and row[header.index("is_pano")] == True:
-                        continue
-                    if userid and str(row[header.index("creator_id")]) != userid:
-                        continue
-                    
-                    csvwriter.writerow(row)
 
 
 def img_ids_from_csv(csv_path, img_id_col=1):
@@ -181,6 +67,7 @@ def img_ids_from_csv(csv_path, img_id_col=1):
         csvreader = csv.reader(csvfile)
         image_ids = [row[img_id_col] for row in csvreader][1:]
     return image_ids
+
 
 def img_ids_from_dbtable(db_table, dbname):
     conn = psycopg2.connect(
@@ -196,59 +83,12 @@ def img_ids_from_dbtable(db_table, dbname):
     conn.close()
     return img_ids
 
-def download_images(image_ids, img_folder, img_size, mapillary_token, parallel_batch_size, parallel=True):
-    start = time.time()
-    os.makedirs(img_folder, exist_ok=True)
 
-    if parallel:
-        # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
-        if (parallel_batch_size is None) or (parallel_batch_size > len(image_ids)):
-            parallel_batch_size = len(image_ids)
-        for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
+def img_ids_to_csv(dbname, data_path, db_table, file_name):
+    ids = img_ids_from_dbtable(db_table, dbname)
+    pd.DataFrame({"img_id" : ids}).to_csv(os.path.join(data_path, file_name), index=False)
+    logging.info(f"img ids written to {os.path.join(data_path, file_name)}")
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                batch_end = (batch_start+parallel_batch_size 
-                             if batch_start+parallel_batch_size < len(image_ids) 
-                             else len(image_ids))
-                
-                executor.map(download_image, image_ids[batch_start:batch_end], 
-                             repeat(img_size), repeat(img_folder), repeat(mapillary_token))
-    else:
-        for i in tqdm(range(0, len(image_ids))):
-            download_image(
-                int(image_ids[i]), img_size, img_folder, mapillary_token
-            )
-    print(f"{round((time.time()-start )/ 60)} mins")
-
-
-def write_tiles_within_boundary(csv_path, boundary=None, minLon=None, minLat=None, maxLon=None, maxLat=None):
-        
-    if boundary:
-        bbox = boundary.total_bounds
-    else:
-        bbox = (minLon, minLat, maxLon, maxLat)
-
-    tiles = list()
-    tiles += list(
-        mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], const.ZOOM)
-    )
-
-    # with open(
-    #     csv_path, "w", newline=""
-    # ) as csvfile:
-    #     csvwriter = csv.writer(csvfile)
-    #     csvwriter.writerow(["x", "y", "z", "lat", "lon"])
-    #     for i in range(0, len(tiles)):
-    #         tile = tiles[i]
-    #         lon, lat = tile_center(tile.x, tile.y, const.zoom)
-    #         point = gpd.GeoDataFrame(
-    #             geometry=[Point(lon, lat)], crs="EPSG:4326"
-    #         )
-    #         # if tile center within boundary of city, write to csv
-    #         if boundary.geometry.contains(point)[0]:
-    #             csvwriter.writerow([tile.x, tile.y, const.zoom, lat, lon])
-
-    return tiles
 
 
 def clean_surface(surface):
@@ -488,7 +328,8 @@ def format_scenery_predictions(model_prediction, pano):
         model_prediction.rename(columns={"Image": "img_id"}, inplace=True)
     return (model_prediction)
 
-def execute_sql_query(dbname, query_file, params):
+
+def execute_sql_query(dbname, query, params, is_file=True):
 
     conn = psycopg2.connect(
         dbname=dbname,
@@ -496,10 +337,11 @@ def execute_sql_query(dbname, query_file, params):
         host=db.host,
     )
     # create table with sample data points
-    with open(query_file, "r") as file:
-        query_create_table = file.read()
+    if is_file:
+        with open(query, "r") as file:
+            query = file.read()
     with conn.cursor(cursor_factory=DictCursor) as cursor:
-        cursor.execute(sql.SQL(query_create_table.format(**params)))
+        cursor.execute(sql.SQL(query.format(**params)))
         conn.commit()
 
     conn.close()

@@ -9,7 +9,7 @@
     "database": "databaseBerlinPrio",
     "pbf_path": null,
     "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
-    "crs": 25833,
+    "proj_crs": 25833,
     "custom_attrs":{"edge_table_name": "berlin_priorisierungskonzept"},
     "custom_road_type_separation": "src/sql/assign_road_types_berlin.sql",
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_all-20240810_170444.csv",

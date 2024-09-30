@@ -1,6 +1,6 @@
 CREATE TEMP TABLE temp_transformed AS
 SELECT
-  id AS img_id,
+  img_id,
   tile_id,
   sequence_id,
   captured_at,
