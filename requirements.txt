@@ -1,6 +1,7 @@
 numpy
 pandas
 geopandas
+requests
 mercantile
 vt2geojson
 psycopg2
