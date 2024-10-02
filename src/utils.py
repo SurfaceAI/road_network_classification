@@ -5,13 +5,7 @@ import csv
 import numpy as np
 import mercantile
 import requests
-from vt2geojson.tools import vt_bytes_to_geojson
-import psycopg2
-from psycopg2 import sql
-from psycopg2.extras import DictCursor
 from pathlib import Path
-import logging
-import pandas as pd
 
 from PIL import Image
 import equilib
@@ -23,17 +17,7 @@ import geopandas as gpd
 root_path=str(Path(os.path.abspath(__file__)).parent.parent)
 sys.path.append(root_path)
 
-import database_credentials as db
-
-import config
 import constants as const
-
-def get_access_token(token_path):
-    token_path = os.path.join(root_path, token_path)
-    with open(token_path, "r") as file:
-        # access_token = tokenfile.readlines()
-        access_tokens = [line.strip() for line in file.readlines()]
-        return access_tokens[0]
 
 
 def tile_center(xtile, ytile, zoom):
@@ -57,9 +41,6 @@ def tile_center(xtile, ytile, zoom):
 
 
 
-
-
-
 def img_ids_from_csv(csv_path, img_id_col=1):
     with open(
         csv_path, newline=""
@@ -67,28 +48,6 @@ def img_ids_from_csv(csv_path, img_id_col=1):
         csvreader = csv.reader(csvfile)
         image_ids = [row[img_id_col] for row in csvreader][1:]
     return image_ids
-
-
-def img_ids_from_dbtable(db_table, dbname):
-    conn = psycopg2.connect(
-        dbname=dbname,
-        user=db.user,
-        host=db.host,
-    )
-
-    with conn.cursor(cursor_factory=DictCursor) as cursor:
-        img_ids = cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table}"))
-        img_ids = cursor.fetchall()
-        img_ids = [img_id[0] for img_id in img_ids]
-    conn.close()
-    return img_ids
-
-
-def img_ids_to_csv(dbname, data_path, db_table, file_name):
-    ids = img_ids_from_dbtable(db_table, dbname)
-    pd.DataFrame({"img_id" : ids}).to_csv(os.path.join(data_path, file_name), index=False)
-    logging.info(f"img ids written to {os.path.join(data_path, file_name)}")
-
 
 
 def clean_surface(surface):
@@ -112,6 +71,7 @@ def query_coords(img_id, mapillary_token):
     )
     data = response.json()
     return data["geometry"]["coordinates"]
+
 
 def query_creator_name(image_id):
     response = requests.get(
@@ -140,6 +100,7 @@ def query_sequenceid(img_id):
     )
     data = response.json()
     return data["sequence"]
+
 
 def query_sequence(sequence_id):
     response = requests.get(
@@ -219,7 +180,6 @@ def compute_compass_angle(points):
     return compass_angle
 
    
-
 def pano_to_persp(in_path, out_path, img_id, mapillary_token, 
                   cangle=None, direction_of_travel=None, persp_height = 480, persp_width = 640):
     """ Transform panorama image to two perspective images that face the direction of travel
@@ -267,12 +227,12 @@ def pano_to_persp(in_path, out_path, img_id, mapillary_token,
         Image.fromarray(pers_img).save(os.path.join(out_path, f"{img_id}_{i}.jpg"))
 
 
-def format_predictions(model_prediction, pano):
+def format_predictions(model_prediction, is_pano):
     """Bring model prediction output into a format for further analysis
 
     Args:
         model_prediction (pd.DataFrame): model prediction csv output
-        pano (bool, optional): are images panorama images with `Image`indication direction (_0 and _1)?. Defaults to True.
+        is_pano (bool, optional): are images panorama images with `Image`indication direction (_0 and _1)?
 
     Returns:
         pd.DataFrame: formatted model predictions
@@ -292,21 +252,22 @@ def format_predictions(model_prediction, pano):
     pred = pred[["type_pred", "type_class_prob", "quality_pred", "quality_pred_label"]]
     pred.reset_index(inplace=True)
 
-    if pano:
+    if is_pano:
         img_ids = pred["Image"].str.split("_").str[0:2]
         pred.insert(0, "img_id", [img_id[0] for img_id in img_ids])
         pred.insert(1, "direction", [int(float(img_id[1])) for img_id in img_ids])
         pred.drop(columns=["Image"], inplace=True)
-    if not pano:
+    if not is_pano:
         pred.rename(columns={"Image": "img_id"}, inplace=True)
     return (pred)
 
-def format_scenery_predictions(model_prediction, pano):
+
+def format_scenery_predictions(model_prediction, is_pano):
     """Bring model scenery prediction output into a format for further analysis
 
     Args:
         model_prediction (pd.DataFrame): model prediction csv output
-        pano (bool, optional): are images panorama images with `Image`indication direction (_0 and _1)?. Defaults to True.
+        pano (bool, optional): are images panorama images with `Image`indication direction (_0 and _1)?. 
 
     Returns:
         pd.DataFrame: formatted model predictions
@@ -319,29 +280,12 @@ def format_scenery_predictions(model_prediction, pano):
 
     model_prediction = model_prediction[["Image", "scenery_pred"]]
 
-    if pano:
+    if is_pano:
         img_ids = model_prediction["Image"].str.split("_").str[0:2]
         model_prediction.insert(0, "img_id", [img_id[0] for img_id in img_ids])
         model_prediction.insert(1, "direction", [int(float(img_id[1])) for img_id in img_ids])
         model_prediction.drop(columns=["Image"], inplace=True)
-    if not pano:
+    if not is_pano:
         model_prediction.rename(columns={"Image": "img_id"}, inplace=True)
     return (model_prediction)
 
-
-def execute_sql_query(dbname, query, params, is_file=True):
-
-    conn = psycopg2.connect(
-        dbname=dbname,
-        user=db.user,
-        host=db.host,
-    )
-    # create table with sample data points
-    if is_file:
-        with open(query, "r") as file:
-            query = file.read()
-    with conn.cursor(cursor_factory=DictCursor) as cursor:
-        cursor.execute(sql.SQL(query.format(**params)))
-        conn.commit()
-
-    conn.close()

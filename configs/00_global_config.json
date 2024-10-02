@@ -3,7 +3,10 @@
     "parallel": true,
     "parallel_batch_size" : 100,
     "data_root" : "data",
-    "database": "database",
+    "dbname": "database",
+    "dbuser": "user",
+    "dbhost": "host",
+    "dbpassword": "password",
     "pbf_path" : "data/germany-latest.osm.pbf",
     "img_size": "thumb_2048_url",
     "proj_crs": 3035,
@@ -17,5 +20,5 @@
     "custom_attrs": {},
     "additional_id_column": null,
     "custom_sql_way_selection": false,
-    "custom_road_scenery_join": false
+    "custom_road_type_join": false
 }

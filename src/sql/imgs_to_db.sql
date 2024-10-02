@@ -1,8 +1,8 @@
 drop table if exists {table_name} ;
 
 CREATE TABLE {table_name} (
+    img_id VARCHAR,
 	tile_id VARCHAR,
-    id VARCHAR,
     sequence_id VARCHAR,
     captured_at bigint,
     compass_angle double precision,

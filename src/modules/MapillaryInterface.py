@@ -1,7 +1,7 @@
 import os
+from pathlib import Path
+import sys
 import logging
-import utils
-import constants as const
 
 import csv
 import mercantile
@@ -14,6 +14,11 @@ from itertools import repeat
 from tqdm import tqdm
 import concurrent.futures
 
+# local modules
+src_dir = Path(os.path.abspath(__file__)).parent.parent
+sys.path.append(str(src_dir))
+import utils
+import constants as const
 
 class MapillaryInterface:
     def __init__(self, mapillary_token, parallel, parallel_batch_size):
@@ -51,19 +56,21 @@ class MapillaryInterface:
             for i in tqdm(range(0, len(tiles))):
                 tile = tiles[i]
                 header, output = self.metadata_in_tile(tile)
+
                 if i == 0:
                     csvwriter.writerow(header)
-                for row in output:
-                    # filter img
-                    if ((row[header.index("lon")] > aoi.minLon) and (row[header.index("lon")] < aoi.maxLon) 
-                        and (row[header.index("lat")] > aoi.minLat) and (row[header.index("lat")] < aoi.maxLat)):
+                if output:
+                    for row in output:
+                        # filter img
+                        if ((row[header.index("lon")] > aoi.minLon) and (row[header.index("lon")] < aoi.maxLon) 
+                            and (row[header.index("lat")] > aoi.minLat) and (row[header.index("lat")] < aoi.maxLat)):
 
-                        if aoi.no_pano and row[header.index("is_pano")] == True:
-                            continue
-                        if aoi.userid and str(row[header.index("creator_id")]) != aoi.userid:
-                            continue
-                        
-                        csvwriter.writerow(row)
+                            if not aoi.use_pano and row[header.index("is_pano")] == True:
+                                continue
+                            if aoi.userid and str(row[header.index("creator_id")]) != aoi.userid:
+                                continue
+                            
+                            csvwriter.writerow(row)
 
         logging.info(f"img metadata query complete")
 
@@ -78,8 +85,8 @@ class MapillaryInterface:
             tuple(list, list(list))): Metadata of all images within tile, including coordinates, as tuple: first element is list with column names ("header"). Second element is a list of list, each list representing one image.
         """
         header = [
+            "img_id",
             "tile_id",
-            "id",
             "sequence_id",
             "captured_at",
             "compass_angle",
@@ -88,6 +95,8 @@ class MapillaryInterface:
             "lon",
             "lat",
         ]
+        tile_id = str(int(tile.x)) + "_" + str(int(tile.y)) + "_" + str(int(tile.z))
+
         output = list()
         response = requests.get(
             const.MAPILLARY_TILE_URL.format(
@@ -95,29 +104,59 @@ class MapillaryInterface:
             ),
             params={"access_token": self.token},
         )
-        data = vt_bytes_to_geojson(
-            response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
-        )
 
-        # a feature is a point/image
-        # TODO: can this be speed up?
-        for feature in data["features"]:
-            output.append(
-                [
-                    str(int(tile.x)) + "_" + str(int(tile.y)) + "_" + str(int(tile.z)),
-                    feature["properties"]["id"],
-                    feature["properties"]["sequence_id"],
-                    feature["properties"]["captured_at"],
-                    feature["properties"]["compass_angle"],
-                    feature["properties"]["is_pano"],
-                    feature["properties"]["creator_id"],
-                    feature["geometry"]["coordinates"][0],
-                    feature["geometry"]["coordinates"][1],
-                ]
+        if response.status_code != 200:
+            logging.INFO(response.status_code)
+            logging.INFO(response.reason)
+            logging.INFO(f"tile_id: {tile_id}")
+
+            return (header, False)
+        
+        else:
+            data = vt_bytes_to_geojson(
+                response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
             )
 
-        return (header, output)
+            # a feature is a point/image
+            # TODO: can this be speed up?
+            for feature in data["features"]:
+                output.append(
+                    [
+                        feature["properties"]["id"],
+                        tile_id,
+                        feature["properties"]["sequence_id"],
+                        feature["properties"]["captured_at"],
+                        feature["properties"]["compass_angle"],
+                        feature["properties"]["is_pano"],
+                        feature["properties"]["creator_id"],
+                        feature["geometry"]["coordinates"][0],
+                        feature["geometry"]["coordinates"][1],
+                    ]
+                )
+
+            return (header, output)
     
+    def download_imgs_from_table(self,
+                        dest_folder,
+                        img_size,
+                        csv_path = None, database=None,
+                        db_table = None, img_id_col=False):
+
+        if csv_path:
+            img_id_col = 1 if (img_id_col is False) else img_id_col
+            img_ids = utils.img_ids_from_csv(csv_path, img_id_col=img_id_col)
+        elif db_table:
+            img_ids = database.img_ids_from_dbtable(db_table)
+
+        # only download images that are not present yet in download folder
+        if os.path.exists(dest_folder):
+            imgs_in_download_folder =  os.listdir(dest_folder)
+            imgIDs_in_download_folder = [img_id.split(".")[0] for img_id in imgs_in_download_folder]
+            img_ids = list(set(img_ids) - set(imgIDs_in_download_folder))
+
+        logging.info(f"Downloading {len(img_ids)} images")
+        self.download_images(img_ids, img_size, dest_folder)
+
 
 
     def download_images(self, image_ids, img_size, dest_folder):

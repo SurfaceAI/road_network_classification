@@ -6,7 +6,7 @@ SELECT
   captured_at,
   st_transform(geom, {crs}) AS geom
 FROM
-  {name};
+  {name}_img_metadata;
  
 CREATE INDEX temp_transformed_idx ON temp_transformed USING GIST(geom);
 
@@ -61,9 +61,9 @@ SET num_closeby_ways = (
   WHERE temp_table.img_id = CloseByRoads.img_id
 );
 
-DROP TABLE  {name};
-ALTER TABLE temp_table RENAME TO  {name};
+DROP TABLE  {name}_img_metadata;
+ALTER TABLE temp_table RENAME TO  {name}_img_metadata;
 
 DROP TABLE  temp_transformed;
 
-CREATE INDEX {name}_idx ON {name} USING GIST(geom);
+CREATE INDEX {name}_img_metadata_idx ON {name}_img_metadata USING GIST(geom);

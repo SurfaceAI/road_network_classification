@@ -1,10 +1,10 @@
 {
     "name": "dresden_small",
-    "run": "run1",
+    "run": "run3",
     "minLon": 13.735721,
     "minLat": 51.049871,
     "maxLon": 13.752246,
     "maxLat": 51.05792,
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/dresden/prediction/effnet_surface_quality_prediction-dresden_small_imgs-20240830_154156.csv",
-    "road_scenery_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/dresden/prediction/effnet_scenery_prediction-dresden_small_imgs-20240830_160348.csv"
+    "road_type_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/dresden/prediction/effnet_scenery_prediction-dresden_small_imgs-20240830_160348.csv"
 }

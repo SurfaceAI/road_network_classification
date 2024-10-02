@@ -4,7 +4,7 @@ This repository provides the code for the SurfaceAI pipeline.
 
 ! THIS CODE IS STILL UNDER DEVELOPMENT! 
 
-*Currently, the classification models are not yet integrated and a csv file path `pred_path` to surface type and quality image classification model results is expected in the config file, as well as a `road_scenery_pred_path` to the road scene classification model results.*
+*Currently, the classification models are not yet integrated and a csv file path `pred_path` to surface type and quality image classification model results is expected in the config file, as well as a `road_type_pred_path` to the road scene classification model results.*
 
 Find the [paper](TODO) of this publication here.
 

@@ -6,5 +6,5 @@
     "maxLon": 13.828583,
     "maxLat": 51.094676,
     "pred_path": "",
-    "road_scenery_pred_path": ""
+    "road_type_pred_path": ""
 }

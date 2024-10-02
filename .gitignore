@@ -4,8 +4,8 @@ data
 data/*
 .DS_Store
 *.qgz
-mapillary_token.txt
-database_credentials.py
+.vscode
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
