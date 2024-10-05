@@ -20,34 +20,63 @@ sys.path.append(str(src_dir))
 import utils
 import constants as const
 
+
 class MapillaryInterface:
+    """Interface for Mapillary API to query image metadata and download images."""
+
     def __init__(self, mapillary_token, parallel, parallel_batch_size):
+        """Initializes a MapillaryInterface object.
+                    Zoom level is defined in constants.py.
+
+
+        Args:
+            mapillary_token (str): Mapillary API token
+            parallel (bool): Download images in parallel
+            parallel_batch_size (int): Number of images to download in parallel
+        """
         self.token = mapillary_token
         self.parallel = parallel
         self.parallel_batch_size = parallel_batch_size
 
-    
-    def tiles_within_boundary(self, boundary=None, minLon=None, minLat=None, maxLon=None, maxLat=None):
-        if boundary:
-            bbox = boundary.total_bounds
-        else:
-            bbox = (minLon, minLat, maxLon, maxLat)
+    def tiles_within_boundary(self, boundary, zoom):
+        """
+        Calculates and returns the tiles that fall within a given boundary defined by a polygon (GeoDataFrame).
 
-        tiles = list()
-        tiles += list(
-            mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], const.ZOOM)
-        )
-        return tiles
+        Args:
+            boundary (GeoDataFrame): A GeoDataFrame representing the boundary.
+
+        Returns:
+            list: A list of mercantile.Tiles that are within the bbox.
+        """
+        bbox = boundary.total_bounds
+        return self.tiles_within_bbox(bbox, zoom)
+
+    def tiles_within_bbox(self, bbox, zoom):
+        """
+        Calculates and returns the tiles that fall within a bounding box.
+
+        Args:
+            bbox (list): A list of bounding box coordinates [minLon, minLat, maxLon, maxLat]
+            zoom (int): Zoom level of the mercantile tiles
+
+        Returns:
+            list: A list of mercantile.Tiles that are within the bbox.
+        """
+        return list(mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], zoom))
 
     def query_metadata(self, aoi):
+        """
+        Query image metadata within a given area of interest and save to csv file.
+        """
 
-        logging.info(f"Querying img metadata in bbox {[aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat]}")
+        logging.info(
+            f"Querying img metadata in bbox {[aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat]}"
+        )
         # get all relevant tile ids
-        tiles = self.tiles_within_boundary(minLon=aoi.minLon, 
-                                           minLat=aoi.minLat, 
-                                           maxLon=aoi.maxLon, 
-                                           maxLat=aoi.maxLat)
-       
+        tiles = self.tiles_within_bbox(
+            [aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat], const.ZOOM
+        )
+
         out_path = aoi.set_img_metadata_path()
         # download img metadata to csv: to that if download is interrupted, we can resume
         # TODO: write directly into DB after each tile (without csv?)
@@ -61,23 +90,30 @@ class MapillaryInterface:
                     csvwriter.writerow(header)
                 if output:
                     for row in output:
-                        # filter img
-                        if ((row[header.index("lon")] > aoi.minLon) and (row[header.index("lon")] < aoi.maxLon) 
-                            and (row[header.index("lat")] > aoi.minLat) and (row[header.index("lat")] < aoi.maxLat)):
+                        # filter img in bbox
+                        if (
+                            (row[header.index("lon")] > aoi.minLon)
+                            and (row[header.index("lon")] < aoi.maxLon)
+                            and (row[header.index("lat")] > aoi.minLat)
+                            and (row[header.index("lat")] < aoi.maxLat)
+                        ):
+                            if (
+                                not aoi.use_pano
+                                and row[header.index("is_pano")] == True
+                            ):
+                                continue
+                            if (
+                                aoi.userid
+                                and str(row[header.index("creator_id")]) != aoi.userid
+                            ):
+                                continue
 
-                            if not aoi.use_pano and row[header.index("is_pano")] == True:
-                                continue
-                            if aoi.userid and str(row[header.index("creator_id")]) != aoi.userid:
-                                continue
-                            
                             csvwriter.writerow(row)
 
         logging.info(f"img metadata query complete")
 
     def metadata_in_tile(self, tile):
         """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
-        This includes coordinates of images!
-
         Args:
             tile(mercantile.Tile): mercantile tile
 
@@ -106,12 +142,12 @@ class MapillaryInterface:
         )
 
         if response.status_code != 200:
-            logging.INFO(response.status_code)
-            logging.INFO(response.reason)
-            logging.INFO(f"tile_id: {tile_id}")
+            logging.info(response.status_code)
+            logging.info(response.reason)
+            logging.info(f"tile_id: {tile_id}")
 
             return (header, False)
-        
+
         else:
             data = vt_bytes_to_geojson(
                 response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
@@ -135,57 +171,81 @@ class MapillaryInterface:
                 )
 
             return (header, output)
-    
-    def download_imgs_from_table(self,
-                        dest_folder,
-                        img_size,
-                        csv_path = None, database=None,
-                        db_table = None, img_id_col=False):
+
+    def download_imgs_from_table(
+        self,
+        dest_folder,
+        img_size,
+        csv_path=None,
+        img_id_col=1,
+        database=None,
+        db_table=None,
+    ):
+        """Download images based on image IDs in a csv file or database table
+
+        Args:
+            dest_folder (str): Destination folder to save images to
+            img_size (str): Size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
+            csv_path (str, optional): Path to csv file with image IDs. If database table is given, set to None. Defaults to None.
+            img_id_col (int, optional): Column in csv file with image IDs. Defaults to 1.
+            database (SurfaceDatabase, optional): SurfaceDatabase object. If csv_path is given, set to None. Defaults to None.
+            db_table (str, optional): Database table with image IDs. If csv_path is given, set to None. Defaults to None.
+        """
 
         if csv_path:
-            img_id_col = 1 if (img_id_col is False) else img_id_col
             img_ids = utils.img_ids_from_csv(csv_path, img_id_col=img_id_col)
         elif db_table:
             img_ids = database.img_ids_from_dbtable(db_table)
 
         # only download images that are not present yet in download folder
         if os.path.exists(dest_folder):
-            imgs_in_download_folder =  os.listdir(dest_folder)
-            imgIDs_in_download_folder = [img_id.split(".")[0] for img_id in imgs_in_download_folder]
+            imgs_in_download_folder = os.listdir(dest_folder)
+            imgIDs_in_download_folder = [
+                img_id.split(".")[0] for img_id in imgs_in_download_folder
+            ]
             img_ids = list(set(img_ids) - set(imgIDs_in_download_folder))
 
         logging.info(f"Downloading {len(img_ids)} images")
         self.download_images(img_ids, img_size, dest_folder)
 
-
-
     def download_images(self, image_ids, img_size, dest_folder):
+        """Download images of given image_ids and save to given image_folder
+
+        Args:
+            img_ids (list): IDs of images to download
+            img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
+            img_folder (str): path of folder to save image to
+        """
+
         start = time.time()
         os.makedirs(dest_folder, exist_ok=True)
 
         if self.parallel:
             # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
-            if (self.parallel_batch_size is None) or (self.parallel_batch_size > len(image_ids)):
+            if (self.parallel_batch_size is None) or (
+                self.parallel_batch_size > len(image_ids)
+            ):
                 parallel_batch_size = len(image_ids)
             else:
                 parallel_batch_size = self.parallel_batch_size
             for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
-
                 with concurrent.futures.ThreadPoolExecutor() as executor:
-                    batch_end = (batch_start+parallel_batch_size 
-                                if batch_start+parallel_batch_size < len(image_ids) 
-                                else len(image_ids))
-                    
-                    executor.map(self.download_image, image_ids[batch_start:batch_end], 
-                                repeat(img_size), repeat(dest_folder))
+                    batch_end = (
+                        batch_start + parallel_batch_size
+                        if batch_start + parallel_batch_size < len(image_ids)
+                        else len(image_ids)
+                    )
+
+                    executor.map(
+                        self.download_image,
+                        image_ids[batch_start:batch_end],
+                        repeat(img_size),
+                        repeat(dest_folder),
+                    )
         else:
             for i in tqdm(range(0, len(image_ids))):
-                self.download_image(
-                    int(image_ids[i]), img_size, dest_folder
-                )
-        logging.INFO(f"{round((time.time()-start )/ 60)} mins")
-
-
+                self.download_image(int(image_ids[i]), img_size, dest_folder)
+        logging.info(f"{round((time.time()-start )/ 60)} mins")
 
     def download_image(self, img_id, img_size, dest_folder):
         """Download image file based on img_id and save to given image_folder
@@ -204,9 +264,9 @@ class MapillaryInterface:
         )
 
         if response.status_code != 200:
-            logging.INFO(response.status_code)
-            logging.INFO(response.reason)
-            logging.INFO(f"image_id: {img_id}")
+            logging.info(response.status_code)
+            logging.info(response.reason)
+            logging.info(f"image_id: {img_id}")
         else:
             data = response.json()
             if img_size in data:
@@ -217,6 +277,4 @@ class MapillaryInterface:
                 with open(os.path.join(dest_folder, f"{img_id}.jpg"), "wb") as handler:
                     handler.write(image_data)
             else:
-                logging.INFO(f"no image size {img_size} for image {img_id}")
-
-
+                logging.info(f"no image size {img_size} for image {img_id}")
