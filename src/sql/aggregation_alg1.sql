@@ -20,7 +20,7 @@ WITH GroupedSegments AS (
         road_type,
         ST_LineMerge(ST_Union(geom)) AS geometry
     FROM (
-	    select {additional_id_column}ways.id, ways.group_num, ways.segment_number, 
+	    select {additional_ways_id_column}ways.id, ways.group_num, ways.segment_number, 
         part.part_id, part.road_type, part.geom
 	    from {name}_segmented_ways ways
 	    join {name}_partitions part

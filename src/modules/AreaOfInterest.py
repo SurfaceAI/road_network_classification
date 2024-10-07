@@ -1,4 +1,14 @@
 import os
+import sys
+from pathlib import Path
+
+import pandas as pd
+
+# local modules
+src_dir = Path(os.path.abspath(__file__)).parent.parent
+sys.path.append(str(src_dir))
+import utils
+import constants as const
 
 
 class AreaOfInterest:
@@ -87,6 +97,9 @@ class AreaOfInterest:
         self.pred_path = config["pred_path"]
         self.road_type_pred_path = config["road_type_pred_path"]
 
+        self.set_sql_query_params()
+        self.set_sql_query_files()
+
     def set_img_metadata_path(self):
         self.img_metadata_path = os.path.join(self.data_path, "img_metadata.csv")
         return self.img_metadata_path
@@ -94,3 +107,86 @@ class AreaOfInterest:
     def remove_img_metadata_file(self):
         os.remove(self.img_metadata_path)
         self.img_metadata_path = None
+
+    def set_sql_query_params(self):
+        additional_id_column = (
+            f"{self.additional_id_column}," if self.additional_id_column != None else ""
+        )  # add comma
+        grouping_ids = f"{additional_id_column}id,part_id,group_num"
+        additional_ways_id_column = (
+            f"ways.{additional_id_column}" if additional_id_column != "" else ""
+        )
+
+        folder = os.path.join(self.data_path, self.run)
+        surface_pred_csv_path = os.path.join(folder, "classification_results.csv")
+        road_type_pred_csv_path = os.path.join(folder, "scenery_class_results.csv")
+
+        self.query_params = {
+            "name": self.name,
+            "absolute_path": self.img_metadata_path,
+            "surface_pred_csv_path": surface_pred_csv_path,
+            "road_type_pred_csv_path": road_type_pred_csv_path,
+            "additional_id_column": additional_id_column,
+            "additional_ways_id_column": additional_ways_id_column,
+            "grouping_ids": grouping_ids,
+            "table_name_point_selection": f"{self.name}_img_metadata",
+            "segment_length": self.segment_length,
+            "segments_per_group": self.segments_per_group,
+            "min_road_length": self.min_road_length,
+        }
+
+    def set_sql_query_files(self):
+        way_selection_query = (
+            const.SQL_WAY_SELECTION
+            if not self.custom_sql_way_selection
+            else self.custom_sql_way_selection
+        )
+
+        add_surface_pred_results = (
+            const.SQL_JOIN_MODEL_PRED_DIR
+            if self.use_pano
+            else const.SQL_JOIN_MODEL_PRED
+        )
+
+        add_road_type_pred_results = (
+            const.SQL_JOIN_TYPE_PRED
+            if not self.custom_road_type_join
+            else self.custom_road_type_join
+        )
+
+        roadtype_separation = (
+            const.SQL_ASSIGN_ROAD_TYPES
+            if not self.custom_road_type_separation
+            else self.custom_road_type_separation
+        )
+
+        self.query_files = {
+            "add_img_metadata_table": const.SQL_IMGS_TO_DB,
+            "way_selection": way_selection_query,
+            "segment_ways": const.SQL_SEGMENT_WAYS,
+            "match_img_roads": const.SQL_MATCH_IMG_ROADS,
+            "add_surface_pred_results": add_surface_pred_results,
+            "add_road_type_pred_results": add_road_type_pred_results,
+            "roadtype_separation": roadtype_separation,
+            "aggregate_on_roads_1": const.SQL_AGGREGATE_ON_ROADS.format(1),
+            "aggregate_on_roads_2": const.SQL_AGGREGATE_ON_ROADS.format(2),
+            "aggregate_on_roads_3": const.SQL_AGGREGATE_ON_ROADS.format(3),
+        }
+
+    def format_pred_files(self):
+        os.makedirs(self.sql_query_params["surface_pred_csv_path"], exist_ok=True)
+        os.makedirs(self.sql_query_params["road_type_pred_csv_path"], exist_ok=True)
+
+        surface_pred = utils.format_predictions(
+            pd.read_csv(self.pred_path, dtype={"Image": str, "Level_1": str}),
+            is_pano=self.use_pano,
+        )
+        surface_pred.to_csv(self.sql_query_params["surface_pred_csv_path"], index=False)
+
+        road_type_pred = utils.format_scenery_predictions(
+            pd.read_csv(self.road_type_pred_path, dtype={"Image": str}),
+            is_pano=self.use_pano,
+        )
+        road_type_pred.to_csv(
+            self.sql_query_params["road_type_pred_csv_path"], index=False
+        )

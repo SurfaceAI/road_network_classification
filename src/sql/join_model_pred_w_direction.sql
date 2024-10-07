@@ -10,7 +10,7 @@ CREATE TEMP TABLE temp_pred (
 
 -- Import data from CSV file
 (COPY temp_pred(img_id,direction,type_pred,type_class_prob,quality_pred,quality_pred_label)
-FROM '{csv_path}'
+FROM '{surface_pred_csv_path}'
 WITH (FORMAT csv, HEADER true));
 
 DROP TABLE IF EXISTS temp_pt_selection;

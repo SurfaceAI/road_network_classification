@@ -6,7 +6,7 @@ CREATE TEMP TABLE temp_scenery_pred (
 
 -- Import data from CSV file
 COPY temp_scenery_pred(img_id,road_type)
-FROM '{csv_path}'
+FROM '{road_type_pred_csv_path}'
 WITH (FORMAT csv, HEADER true);
 
 DROP TABLE IF EXISTS temp_pt_selection;

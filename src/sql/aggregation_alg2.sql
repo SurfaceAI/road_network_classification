@@ -85,7 +85,7 @@ TopRankedVotes AS (
         GroupSurfaceVotes GV
 )
     SELECT
-        {additional_id_column}
+        {additional_ways_id_column}
         ways.part_id,
         GRV.*,
 		ways.road_type,
