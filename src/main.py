@@ -15,10 +15,10 @@ from modules import (
 
 
 def process_area_of_interest(db, aoi, mi):
-    logging.info(f"create img table {aoi.name} in database {db.dbname}")
+    #logging.info(f"create img table {aoi.name} in database {db.dbname}")
     mi.query_metadata(aoi)
     db.execute_sql_query(aoi.query_files["add_img_metadata_table"], aoi.query_params)
-    aoi.remove_img_metadata_file()
+    #aoi.remove_img_metadata_file()
 
     logging.info("create linestrings in bounding box")
     db.execute_sql_query(aoi.query_files["way_selection"], aoi.query_params)

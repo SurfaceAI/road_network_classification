@@ -1,6 +1,6 @@
-drop table if exists {table_name_point_selection};
+drop table if exists {name}_img_metadata;
 
-CREATE TABLE {table_name_point_selection} AS 
+CREATE TABLE {name}_img_metadata AS 
   select *
   FROM (
   SELECT

@@ -11,7 +11,7 @@ WITH (FORMAT csv, HEADER true);
 
 DROP TABLE IF EXISTS temp_pt_selection;
 
-alter table {table_name_point_selection} 
+alter table {name}_img_metadata 
 drop column if exists road_type,
 drop column if exists road_type_pred;
 
@@ -25,8 +25,8 @@ SELECT A.*, B.road_type,
         WHEN B.road_type LIKE '1_2_bicycle__1_2_cycleway' THEN 'cycleway'
         ELSE 'other'
     END AS road_type_pred
-FROM  {table_name_point_selection} A
+FROM  {name}_img_metadata A
 LEFT JOIN temp_scenery_pred B on A.img_id = B.img_id;
 
-DROP TABLE  {table_name_point_selection};
-ALTER TABLE temp_pt_selection RENAME TO  {table_name_point_selection};
+DROP TABLE  {name}_img_metadata;
+ALTER TABLE temp_pt_selection RENAME TO  {name}_img_metadata;

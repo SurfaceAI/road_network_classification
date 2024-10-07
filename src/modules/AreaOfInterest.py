@@ -131,7 +131,7 @@ class AreaOfInterest:
             "additional_id_column": additional_id_column,
             "additional_ways_id_column": additional_ways_id_column,
             "grouping_ids": grouping_ids,
-            "table_name_point_selection": f"{self.name}_img_metadata",
+            #"table_name_point_selection": f"{self.name}_img_metadata",
             "segment_length": self.segment_length,
             "segments_per_group": self.segments_per_group,
             "min_road_length": self.min_road_length,
