@@ -1,5 +1,5 @@
 -- drop table if it exists
-drop table if exists {table_name_way_selection};
+drop table if exists {name}_way_selection;
 drop table if exists way_nodes_selection;
 drop table if exists node_selection;
 drop table if exists ways_selection;
@@ -29,7 +29,7 @@ where ways.tags -> 'highway' not in ('construction', 'proposed', 'corridor', 'se
 
 
 -- this step takes some time when bbox is large (38 min for Dresden BBox)
-create table {table_name_way_selection}  as
+create table {name}_way_selection  as
 select id, ways_selection.tags->'surface' as surface, 
 ways_selection.tags ->'smoothness' as smoothness, 
 ways_selection.tags -> 'highway' as highway,
@@ -46,15 +46,15 @@ from node_selection as ns
 join way_nodes_selection as wns on ns.id=wns.node_id where wns.way_id=ways_selection.id ) 
 FROM ways_selection;
 
-CREATE INDEX {table_name_way_selection}_idx ON {table_name_way_selection} USING GIST(geom);
+CREATE INDEX {name}_way_selection_idx ON {name}_way_selection USING GIST(geom);
 
 drop table ways_selection;
 drop table way_nodes_selection;
 drop table node_selection;
 
-alter table {table_name_way_selection} add column if not exists road_type varchar;
+alter table {name}_way_selection add column if not exists road_type varchar;
 
-UPDATE {table_name_way_selection}
+UPDATE {name}_way_selection
 SET road_type = CASE
     WHEN highway IN ('motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 
     'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 

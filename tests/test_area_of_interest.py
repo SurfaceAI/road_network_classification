@@ -62,7 +62,3 @@ def test_initialization(aoi):
 #     # Check if os.remove was called with the correct path
 #     os.remove.assert_called_once_with(aoi.img_metadata_path)
 
-
-def test_set_img_metadata_path(aoi):
-    aoi.set_img_metadata_path()
-    assert aoi.img_metadata_path == "/path/to/data/test_aoi/img_metadata.csv"

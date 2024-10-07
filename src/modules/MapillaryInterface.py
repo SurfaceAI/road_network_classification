@@ -77,7 +77,7 @@ class MapillaryInterface:
             [aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat], const.ZOOM
         )
 
-        out_path = aoi.set_img_metadata_path()
+        out_path = aoi.query_params["img_metadata_path"]
         # download img metadata to csv: to that if download is interrupted, we can resume
         # TODO: write directly into DB after each tile (without csv?)
         with open(out_path, "w", newline="") as csvfile:

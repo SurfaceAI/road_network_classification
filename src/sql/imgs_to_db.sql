@@ -1,6 +1,6 @@
-drop table if exists {table_name} ;
+drop table if exists {table_name_point_selection} ;
 
-CREATE TABLE {table_name} (
+CREATE TABLE {table_name_point_selection} (
     img_id VARCHAR,
 	tile_id VARCHAR,
     sequence_id VARCHAR,
@@ -13,10 +13,10 @@ CREATE TABLE {table_name} (
 
 );
 
-COPY {table_name} FROM '{absolute_path}' DELIMITER ',' CSV HEADER;
+COPY {table_name_point_selection} FROM '{img_metadata_path}' DELIMITER ',' CSV HEADER;
 
-ALTER TABLE {table_name} ADD COLUMN geom geometry(Point, 4326);
+ALTER TABLE {table_name_point_selection} ADD COLUMN geom geometry(Point, 4326);
 
-UPDATE {table_name} SET geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);
+UPDATE {table_name_point_selection} SET geom = ST_SetSRID(ST_MakePoint(lon, lat), 4326);
 
-CREATE INDEX {table_name}_idx ON {table_name} USING GIST(geom);
+CREATE INDEX {table_name_point_selection}_idx ON {table_name_point_selection} USING GIST(geom);
