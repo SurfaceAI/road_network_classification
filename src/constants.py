@@ -1,7 +1,8 @@
-import os 
+import os
 
 # sql file names
 from pathlib import Path
+
 root_path = str(Path(os.path.abspath(__file__)).parent.parent)
 
 
@@ -16,7 +17,7 @@ SQL_JOIN_MODEL_PRED = os.path.join(SQL_FOLDER, "join_model_pred.sql")
 SQL_JOIN_MODEL_PRED_DIR = os.path.join(SQL_FOLDER, "join_model_pred_w_dir.sql")
 SQL_JOIN_TYPE_PRED = os.path.join(SQL_FOLDER, "join_type_pred.sql")
 SQL_AGGREGATE_ON_ROADS = os.path.join(SQL_FOLDER, "aggregation_alg{}.sql")
-SQL_ASSIGN_ROAD_TYPES =  os.path.join(SQL_FOLDER, "assign_road_types.sql")
+SQL_ASSIGN_ROAD_TYPES = os.path.join(SQL_FOLDER, "assign_road_types.sql")
 
 
 # Mapilary settings
