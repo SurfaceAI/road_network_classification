@@ -8,7 +8,6 @@ from psycopg2 import sql
 from psycopg2.extras import DictCursor
 
 
-
 class SurfaceDatabase:
     """Database class to handle database setup and data processing"""
 
@@ -140,3 +139,8 @@ class SurfaceDatabase:
             executable="/bin/bash",
         )
         logging.info(f"table {table_name} writtena as shp file to {output_file}")
+
+    def add_rows_to_table(self, table_name, rows):
+        #TODO
+        query = """ """
+        self.execute_sql_query(query, if_file=False)

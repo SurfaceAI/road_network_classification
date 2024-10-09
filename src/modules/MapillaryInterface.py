@@ -64,23 +64,19 @@ class MapillaryInterface:
         """
         return list(mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], zoom))
 
+   
     def query_metadata(self, aoi):
         """
         Query image metadata within a given area of interest and save to csv file.
         """
-
-        logging.info(
-            f"Querying img metadata in bbox {[aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat]}"
-        )
         # get all relevant tile ids
         tiles = self.tiles_within_bbox(
             [aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat], const.ZOOM
         )
 
-        out_path = aoi.query_params["img_metadata_path"]
-        # download img metadata to csv: to that if download is interrupted, we can resume
+        # download img metadata to csv: so that if download is interrupted, we can resume
         # TODO: write directly into DB after each tile (without csv?)
-        with open(out_path, "w", newline="") as csvfile:
+        with open(aoi.img_metadata_path, "w", newline="") as csvfile:
             csvwriter = csv.writer(csvfile)
             for i in tqdm(range(0, len(tiles))):
                 tile = tiles[i]
@@ -172,109 +168,143 @@ class MapillaryInterface:
 
             return (header, output)
 
-    def download_imgs_from_table(
-        self,
-        dest_folder,
-        img_size,
-        csv_path=None,
-        img_id_col=1,
-        database=None,
-        db_table=None,
-    ):
-        """Download images based on image IDs in a csv file or database table
+    def query_img_urls(self, img_ids, img_size):
+        """Query img content urls for given Mapillary img ids
 
         Args:
-            dest_folder (str): Destination folder to save images to
+            img_ids (list): img ids to query urls for
             img_size (str): Size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-            csv_path (str, optional): Path to csv file with image IDs. If database table is given, set to None. Defaults to None.
-            img_id_col (int, optional): Column in csv file with image IDs. Defaults to 1.
-            database (SurfaceDatabase, optional): SurfaceDatabase object. If csv_path is given, set to None. Defaults to None.
-            db_table (str, optional): Database table with image IDs. If csv_path is given, set to None. Defaults to None.
+
+        Returns:
+            list: img_urls
         """
+        img_urls = []
+        for img_id in img_ids:
+            response = requests.get(
+                const.MAPILLARY_GRAPH_URL.format(int(img_id)),
+                params={
+                    "fields": img_size,
+                    "access_token": self.token,
+                },
+            )
 
-        if csv_path:
-            img_ids = utils.img_ids_from_csv(csv_path, img_id_col=img_id_col)
-        elif db_table:
-            img_ids = database.img_ids_from_dbtable(db_table)
-
-        # only download images that are not present yet in download folder
-        if os.path.exists(dest_folder):
-            imgs_in_download_folder = os.listdir(dest_folder)
-            imgIDs_in_download_folder = [
-                img_id.split(".")[0] for img_id in imgs_in_download_folder
-            ]
-            img_ids = list(set(img_ids) - set(imgIDs_in_download_folder))
-
-        logging.info(f"Downloading {len(img_ids)} images")
-        self.download_images(img_ids, img_size, dest_folder)
-
-    def download_images(self, image_ids, img_size, dest_folder):
-        """Download images of given image_ids and save to given image_folder
-
-        Args:
-            img_ids (list): IDs of images to download
-            img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-            img_folder (str): path of folder to save image to
-        """
-
-        start = time.time()
-        os.makedirs(dest_folder, exist_ok=True)
-
-        if self.parallel:
-            # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
-            if (self.parallel_batch_size is None) or (
-                self.parallel_batch_size > len(image_ids)
-            ):
-                parallel_batch_size = len(image_ids)
+            if response.status_code != 200:
+                logging.info(response.status_code)
+                logging.info(response.reason)
+                logging.info(f"image_id: {img_id}")
             else:
-                parallel_batch_size = self.parallel_batch_size
-            for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    batch_end = (
-                        batch_start + parallel_batch_size
-                        if batch_start + parallel_batch_size < len(image_ids)
-                        else len(image_ids)
-                    )
+                data = response.json()
+                if img_size in data:
+                    img_urls += data[img_size]
+                else:
+                    logging.info(f"no image size {img_size} for image {img_id}")
+        return img_urls
 
-                    executor.map(
-                        self.download_image,
-                        image_ids[batch_start:batch_end],
-                        repeat(img_size),
-                        repeat(dest_folder),
-                    )
-        else:
-            for i in tqdm(range(0, len(image_ids))):
-                self.download_image(int(image_ids[i]), img_size, dest_folder)
-        logging.info(f"{round((time.time()-start )/ 60)} mins")
 
-    def download_image(self, img_id, img_size, dest_folder):
-        """Download image file based on img_id and save to given image_folder
+#######
+# def download_imgs_from_table(
+#     self,
+#     dest_folder,
+#     img_size,
+#     csv_path=None,
+#     img_id_col=1,
+#     database=None,
+#     db_table=None,
+# ):
+#     """Download images based on image IDs in a csv file or database table
 
-        Args:
-            img_id (str): ID of image to download
-            img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-            img_folder (str): path of folder to save image to
-        """
-        response = requests.get(
-            const.MAPILLARY_GRAPH_URL.format(img_id),
-            params={
-                "fields": img_size,
-                "access_token": self.token,
-            },
-        )
+#     Args:
+#         dest_folder (str): Destination folder to save images to
+#         img_size (str): Size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
+#         csv_path (str, optional): Path to csv file with image IDs. If database table is given, set to None. Defaults to None.
+#         img_id_col (int, optional): Column in csv file with image IDs. Defaults to 1.
+#         database (SurfaceDatabase, optional): SurfaceDatabase object. If csv_path is given, set to None. Defaults to None.
+#         db_table (str, optional): Database table with image IDs. If csv_path is given, set to None. Defaults to None.
+#     """
 
-        if response.status_code != 200:
-            logging.info(response.status_code)
-            logging.info(response.reason)
-            logging.info(f"image_id: {img_id}")
-        else:
-            data = response.json()
-            if img_size in data:
-                image_url = data[img_size]
+#     if csv_path:
+#         img_ids = utils.img_ids_from_csv(csv_path, img_id_col=img_id_col)
+#     elif db_table:
+#         img_ids = database.img_ids_from_dbtable(db_table)
 
-                # image: save each image with ID as filename
-                image_data = requests.get(image_url, stream=True).content
-                with open(os.path.join(dest_folder, f"{img_id}.jpg"), "wb") as handler:
-                    handler.write(image_data)
-            else:
-                logging.info(f"no image size {img_size} for image {img_id}")
+#     # only download images that are not present yet in download folder
+#     if os.path.exists(dest_folder):
+#         imgs_in_download_folder = os.listdir(dest_folder)
+#         imgIDs_in_download_folder = [
+#             img_id.split(".")[0] for img_id in imgs_in_download_folder
+#         ]
+#         img_ids = list(set(img_ids) - set(imgIDs_in_download_folder))
+
+#     logging.info(f"Downloading {len(img_ids)} images")
+#     self.download_images(img_ids, img_size, dest_folder)
+
+# def download_images(self, image_ids, img_size, dest_folder):
+#     """Download images of given image_ids and save to given image_folder
+
+#     Args:
+#         img_ids (list): IDs of images to download
+#         img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
+#         img_folder (str): path of folder to save image to
+#     """
+
+#     start = time.time()
+#     os.makedirs(dest_folder, exist_ok=True)
+
+#     if self.parallel:
+#         # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
+#         if (self.parallel_batch_size is None) or (
+#             self.parallel_batch_size > len(image_ids)
+#         ):
+#             parallel_batch_size = len(image_ids)
+#         else:
+#             parallel_batch_size = self.parallel_batch_size
+#         for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
+#             with concurrent.futures.ThreadPoolExecutor() as executor:
+#                 batch_end = (
+#                     batch_start + parallel_batch_size
+#                     if batch_start + parallel_batch_size < len(image_ids)
+#                     else len(image_ids)
+#                 )
+
+#                 executor.map(
+#                     self.download_image,
+#                     image_ids[batch_start:batch_end],
+#                     repeat(img_size),
+#                     repeat(dest_folder),
+#                 )
+#     else:
+#         for i in tqdm(range(0, len(image_ids))):
+#             self.download_image(int(image_ids[i]), img_size, dest_folder)
+#     logging.info(f"{round((time.time()-start )/ 60)} mins")
+
+# def download_image(self, img_id, img_size, dest_folder):
+#     """Download image file based on img_id and save to given image_folder
+
+#     Args:
+#         img_id (str): ID of image to download
+#         img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
+#         img_folder (str): path of folder to save image to
+#     """
+#     response = requests.get(
+#         const.MAPILLARY_GRAPH_URL.format(img_id),
+#         params={
+#             "fields": img_size,
+#             "access_token": self.token,
+#         },
+#     )
+
+#     if response.status_code != 200:
+#         logging.info(response.status_code)
+#         logging.info(response.reason)
+#         logging.info(f"image_id: {img_id}")
+#     else:
+#         data = response.json()
+#         if img_size in data:
+#             image_url = data[img_size]
+
+#             # image: save each image with ID as filename
+#             image_data = requests.get(image_url, stream=True).content
+#             with open(os.path.join(dest_folder, f"{img_id}.jpg"), "wb") as handler:
+#                 handler.write(image_data)
+#         else:
+#             logging.info(f"no image size {img_size} for image {img_id}")

@@ -1,5 +1,4 @@
 {
-    "mapillary_token_path" : "mapillary_token.txt",
     "parallel": true,
     "parallel_batch_size" : 100,
     "data_root" : "data",

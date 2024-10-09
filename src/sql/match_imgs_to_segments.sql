@@ -24,7 +24,6 @@ CREATE TABLE temp_table AS (
       seg.segment_id,
       p.geom,
       to_timestamp(p.captured_at / 1000) as captured_at_timestamp,
-      ST_ClosestPoint(seg.geom, p.geom) AS geom_snapped,
       ST_Distance(seg.geom, p.geom) AS dist
     FROM
       temp_transformed AS p
@@ -49,7 +48,7 @@ CREATE TEMP TABLE CloseByRoads AS
   SELECT img.img_id, COUNT(*) AS num_closeby_ways
   FROM temp_table AS img
   JOIN {name}_way_selection AS ws
-  ON ST_DWithin(img.geom, ws.geom, 10)
+  ON ST_DWithin(img.geom, ws.geom, {dist_from_road})
   GROUP BY img.img_id;
 
 CREATE INDEX CloseByRoads_idx ON CloseByRoads (img_id);

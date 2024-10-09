@@ -4,8 +4,6 @@ from pathlib import Path
 import json
 import logging
 
-# sys.path.append(root_path)
-
 ## local modules
 from modules import (
     SurfaceDatabase as sd,
@@ -15,10 +13,8 @@ from modules import (
 
 
 def process_area_of_interest(db, aoi, mi):
-    #logging.info(f"create img table {aoi.name} in database {db.dbname}")
-    mi.query_metadata(aoi)
-    db.execute_sql_query(aoi.query_files["add_img_metadata_table"], aoi.query_params)
-    #aoi.remove_img_metadata_file()
+    logging.info(f"query img metadata and store in database {db.dbname}")
+    aoi.get_and_write_img_metadata(mi, db)
 
     logging.info("create linestrings in bounding box")
     db.execute_sql_query(aoi.query_files["way_selection"], aoi.query_params)
@@ -26,52 +22,33 @@ def process_area_of_interest(db, aoi, mi):
     logging.info(f"cut lines into segments of length {aoi.segment_length}")
     db.execute_sql_query(aoi.query_files["segment_ways"], aoi.query_params)
 
-    logging.info("match imgs to road linestrings")
+    logging.info("match images to road segments")
     db.execute_sql_query(aoi.query_files["match_img_roads"], aoi.query_params)
 
     ##### classify images
-    # TODO: parallelize download and classification step?
-    # mi.download_imgs_from_table(
-    #                 os.path.join(aoi.data_path, aoi.run, "imgs"),
-    #                 aoi.img_size,
-    #                 database=self,
-    #                 db_table=f"{aoi.name}_img_metadata")
-
     # TODO: include classification model into pipeline
-    # self.classify()
-
-    logging.info("add classification results to db")
-    aoi.format_pred_files()
-    db.execute_sql_query(aoi.query_files["add_surface_pred_results"], aoi.query_params)
-    db.execute_sql_query(
-        aoi.query_files["add_road_type_pred_results"], aoi.query_params
-    )
+    logging.info("classify images")
+    aoi.classify_images(mapillary_interface, surface_database)
 
     if aoi.query_files["roadtype_separation"] != None:
         logging.info(
-            "create partitions for each road type of a geometry in a separate table"
+            "create partitions for each road type of a road segment"
         )
         db.execute_sql_query(aoi.query_files["roadtype_separation"], aoi.query_params)
     else:
         logging.info("no road type separation needed")
 
     logging.info("aggregate by road segment")
+    # split into three scripts for faster execution
     db.execute_sql_query(aoi.query_files["aggregate_on_roads_1"], aoi.query_params)
     db.execute_sql_query(aoi.query_files["aggregate_on_roads_2"], aoi.query_params)
     db.execute_sql_query(aoi.query_files["aggregate_on_roads_3"], aoi.query_params)
-
-    # write results to shapefile
-    output_file = os.path.join(
-        aoi.data_path,
-        aoi.run,
-        f"{aoi.name}_pred.shp",
-    )
-    db.table_to_shapefile(f"{aoi.name}_group_predictions", output_file)
 
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
 
+    # load config
     root_path = str(Path(os.path.abspath(__file__)).parent.parent)
     global_config_path = os.path.join(root_path, "configs", "00_global_config.json")
     credentials_path = os.path.join(root_path, "configs", "01_credentials.json")
@@ -110,3 +87,13 @@ if __name__ == "__main__":
     )
 
     process_area_of_interest(surface_database, area_of_interest, mapillary_interface)
+
+    # write results to shapefile
+    output_file = os.path.join(
+        area_of_interest.data_path,
+        area_of_interest.run,
+        f"{area_of_interest.name}_pred.shp",
+    )
+    surface_database.table_to_shapefile(
+        f"{area_of_interest.name}_group_predictions", output_file
+    )

@@ -10,6 +10,8 @@ sys.path.append(str(src_dir))
 import utils
 import constants as const
 
+from tqdm import tqdm
+
 
 class AreaOfInterest:
     """The area of interest, defined by a bounding box, that the surface is classified for."""
@@ -93,18 +95,19 @@ class AreaOfInterest:
             else config["custom_road_type_separation"]
         )
 
+        self.img_metadata_path = os.path.join(self.data_path, "img_metadata.csv")
         # model results paths
         self.pred_path = config["pred_path"]
         self.road_type_pred_path = config["road_type_pred_path"]
 
-        self.set_query_params()
-        self.set_sql_query_files()
+        self.query_params = self._get_query_params()
+        self.query_files = self._get_sql_query_files()
 
     def remove_img_metadata_file(self):
-        os.remove(self.query_params["img_metadata_path"])
+        os.remove(self.img_metadata_path)
         self.img_metadata_path = None
 
-    def set_query_params(self):
+    def _get_query_params(self):
         additional_id_column = (
             f"{self.additional_id_column}," if self.additional_id_column != None else ""
         )  # add comma
@@ -117,7 +120,7 @@ class AreaOfInterest:
         surface_pred_csv_path = os.path.join(folder, "classification_results.csv")
         road_type_pred_csv_path = os.path.join(folder, "scenery_class_results.csv")
 
-        self.query_params = {
+        return {
             "name": self.name,
             "bbox0": self.minLon,
             "bbox1": self.minLat,
@@ -125,19 +128,18 @@ class AreaOfInterest:
             "bbox3": self.maxLat,
             "crs": self.proj_crs,
             "dist_from_road": self.dist_from_road,
-            "img_metadata_path": os.path.join(self.data_path, "img_metadata.csv"),
+            "img_metadata_path": self.img_metadata_path,
             "surface_pred_csv_path": surface_pred_csv_path,
             "road_type_pred_csv_path": road_type_pred_csv_path,
             "additional_id_column": additional_id_column,
             "additional_ways_id_column": additional_ways_id_column,
             "grouping_ids": grouping_ids,
-            #"table_name_point_selection": f"{self.name}_img_metadata",
             "segment_length": self.segment_length,
             "segments_per_group": self.segments_per_group,
             "min_road_length": self.min_road_length,
         }
 
-    def set_sql_query_files(self):
+    def _get_sql_query_files(self):
         way_selection_query = (
             const.SQL_WAY_SELECTION
             if not self.custom_sql_way_selection
@@ -162,7 +164,7 @@ class AreaOfInterest:
             else self.custom_road_type_separation
         )
 
-        self.query_files = {
+        return {
             "add_img_metadata_table": const.SQL_IMGS_TO_DB,
             "way_selection": way_selection_query,
             "segment_ways": const.SQL_SEGMENT_WAYS,
@@ -174,6 +176,45 @@ class AreaOfInterest:
             "aggregate_on_roads_2": const.SQL_AGGREGATE_ON_ROADS.format(2),
             "aggregate_on_roads_3": const.SQL_AGGREGATE_ON_ROADS.format(3),
         }
+
+    def get_and_write_img_metadata(self, mi, db): 
+        # get all relevant tile ids
+        db.execute_sql_query(self.query_files["create_img_metadata_table"], self.query_params)
+
+        tiles = mi.tiles_within_bbox(
+            [self.minLon, self.minLat, self.maxLon, self.maxLat], const.ZOOM
+        )
+
+        rows = []
+        for i in tqdm(range(0, len(tiles))):
+            tile = tiles[i]
+            header, output = mi.metadata_in_tile(tile)
+            if output:
+                for row in output:
+                    # filter img in bbox
+                    if (
+                        (row[header.index("lon")] > self.minLon)
+                        and (row[header.index("lon")] < self.maxLon)
+                        and (row[header.index("lat")] > self.minLat)
+                        and (row[header.index("lat")] < self.maxLat)
+                    ):
+                        if (
+                            not self.use_pano
+                            and row[header.index("is_pano")] == True
+                        ):
+                            continue
+                        if (
+                            self.userid
+                            and str(row[header.index("creator_id")]) != self.userid
+                        ):
+                            continue
+
+                        rows += row
+
+            db.add_rows_to_table(f"{self.name}_img_metadata", rows)
+        db.execute_sql_query(self.query_files["add_geom_column"], self.query_params)
+
+
 
     def format_pred_files(self):
         file_path = self.query_params["surface_pred_csv_path"]
@@ -191,6 +232,26 @@ class AreaOfInterest:
             pd.read_csv(self.road_type_pred_path, dtype={"Image": str}),
             is_pano=self.use_pano,
         )
-        road_type_pred.to_csv(
-            self.query_params["road_type_pred_csv_path"], index=False
+        road_type_pred.to_csv(self.query_params["road_type_pred_csv_path"], index=False)
+
+    def classify_images(self, mi, db):
+        img_urls = mi.query_img_urls(
+            db.img_ids_from_dbtable(f"{self.name}_img_metadata"), self.img_size
         )
+
+        # for img_url in img_urls:
+            # img_data = requests.get(img_url, stream=True).content
+            # model.predict(img_data)
+        # TODO: bring directly into required format and add to db without writing csv
+        self.format_pred_files()
+
+        db.execute_sql_query(self.query_files["add_surface_pred_results"], 
+                             self.query_params
+                             )
+        db.execute_sql_query(
+            self.query_files["add_road_type_pred_results"], 
+            self.query_params
+        )
+
+
+

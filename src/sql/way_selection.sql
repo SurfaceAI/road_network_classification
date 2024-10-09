@@ -1,9 +1,7 @@
--- drop table if it exists
 drop table if exists {name}_way_selection;
 drop table if exists way_nodes_selection;
 drop table if exists node_selection;
 drop table if exists ways_selection;
-
 
 CREATE TEMP TABLE node_selection AS
 SELECT *, 
