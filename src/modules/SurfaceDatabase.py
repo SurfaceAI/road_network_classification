@@ -140,7 +140,17 @@ class SurfaceDatabase:
         )
         logging.info(f"table {table_name} writtena as shp file to {output_file}")
 
+    def img_ids_from_dbtable(self, db_table):
+        conn = self.create_dbconnection()
+
+        with conn.cursor(cursor_factory=DictCursor) as cursor:
+            img_ids = cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table}"))
+            img_ids = cursor.fetchall()
+            img_ids = [img_id[0] for img_id in img_ids]
+        conn.close()
+        return img_ids
+
     def add_rows_to_table(self, table_name, rows):
         #TODO
         query = """ """
-        self.execute_sql_query(query, if_file=False)
+        #self.execute_sql_query(query, if_file=False)

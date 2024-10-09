@@ -2,6 +2,8 @@ import pytest
 import os
 import sys
 from pathlib import Path
+from PIL import Image
+import numpy as np
 
 root_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(root_dir))
@@ -47,6 +49,24 @@ def test_initialization(aoi):
     assert aoi.min_road_length == 10
     assert aoi.segment_length == 20
     assert aoi.segments_per_group == 10
+
+
+def test_model_predict(aoi):
+    input_data = []
+    for image_id in ["1000068877331935", "1000140361462393"]:
+        image_path=os.path.join(root_dir, "tests", "test_data", f"{image_id}.jpg")
+        input_data.append(Image.open(image_path))
+
+    
+
+     # TODO: store example image in test_data and read it here
+    expected_output= [
+        ["1000068877331935","asphalt",0.99967,2.01654,"good"],
+        ["1000140361462393","asphalt",0.99999,1.70350,"good"]
+    ]
+
+    output = aoi.model_predict(input_data)
+    assert output == expected_output
 
 
 # def test_remove_img_metadata_file(aoi, mocker):

@@ -8,6 +8,8 @@ root_path = str(Path(os.path.abspath(__file__)).parent.parent)
 
 SQL_FOLDER = os.path.join(root_path, "src", "sql")
 SQL_IMGS_TO_DB = os.path.join(SQL_FOLDER, "imgs_to_db.sql")
+SQL_CREATE_IMG_METADATA_TABLE = os.path.join(SQL_FOLDER, "create_img_metadata_table.sql")
+SQL_ADD_GEOM_COLUMN = os.path.join(SQL_FOLDER, "add_geom_column.sql")
 SQL_WAY_SELECTION = os.path.join(SQL_FOLDER, "way_selection.sql")
 SQL_SEGMENT_WAYS = os.path.join(SQL_FOLDER, "segment_ways.sql")
 SQL_IMG_SELECTION = os.path.join(SQL_FOLDER, "img_selection.sql")

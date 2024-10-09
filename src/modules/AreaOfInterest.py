@@ -1,8 +1,10 @@
 import os
 import sys
 from pathlib import Path
-
+import requests
 import pandas as pd
+import io
+from PIL import Image
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -166,6 +168,8 @@ class AreaOfInterest:
 
         return {
             "add_img_metadata_table": const.SQL_IMGS_TO_DB,
+            "create_img_metadata_table": const.SQL_CREATE_IMG_METADATA_TABLE,
+            "add_geom_column": const.SQL_ADD_GEOM_COLUMN,
             "way_selection": way_selection_query,
             "segment_ways": const.SQL_SEGMENT_WAYS,
             "match_img_roads": const.SQL_MATCH_IMG_ROADS,
@@ -236,12 +240,16 @@ class AreaOfInterest:
 
     def classify_images(self, mi, db):
         img_urls = mi.query_img_urls(
-            db.img_ids_from_dbtable(f"{self.name}_img_metadata"), self.img_size
+            db.img_ids_from_dbtable(f"{self.name}_img_metadata")
         )
 
-        # for img_url in img_urls:
-            # img_data = requests.get(img_url, stream=True).content
-            # model.predict(img_data)
+        img_data = []
+        for img_url in img_urls:
+            content = requests.get(img_url, stream=True).content
+            img_data.append(Image.open(io.BytesIO(content)))
+        
+        model_predictions = self.model_predict(img_data)
+        
         # TODO: bring directly into required format and add to db without writing csv
         self.format_pred_files()
 
@@ -253,5 +261,6 @@ class AreaOfInterest:
             self.query_params
         )
 
-
+    def model_predict(self, img_data):
+        pass
 
