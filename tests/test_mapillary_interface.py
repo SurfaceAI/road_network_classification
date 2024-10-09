@@ -26,7 +26,6 @@ def aoi():
     return AreaOfInterest(
         dict(
             name="test_aoi",
-            data_root=os.path.join(root_dir, "tests", "test_data"),
             run="run1",
             minLon=12.01,
             minLat=50.01,
@@ -53,55 +52,6 @@ def test_tiles_within_bbox(mapillary_interface):
 def test_tiles_within_boundary(mapillary_interface):
     pass
 
-
-def test_query_metadata(mapillary_interface, aoi, mocker):
-    # Mock the API call to return a predefined response
-    mock_response = MagicMock()
-    with open(
-        os.path.join(
-            root_dir, "tests", "test_data", "test_aoi", "mly1_public-2-14-8738-5555.pbf"
-        ),
-        "rb",
-    ) as file:
-        mock_response.content = file.read()
-
-    mock_response.status_code = 200
-    mocker.patch(
-        "src.modules.MapillaryInterface.requests.get", return_value=mock_response
-    )
-
-    mapillary_interface.query_metadata(aoi)
-
-    with open(aoi.img_metadata_path, mode="r") as file:
-        reader = csv.reader(file)
-        data = [row for row in reader]
-
-    assert data[0:2] == [
-        [
-            "img_id",
-            "tile_id",
-            "sequence_id",
-            "captured_at",
-            "compass_angle",
-            "is_pano",
-            "creator_id",
-            "lon",
-            "lat",
-        ],
-        [
-            "2155254798207173",
-            "8739_5555_14",
-            "Q59taBo0UGIAxmYrC1q7yc",
-            "1722615253554",
-            "188.0",
-            "False",
-            "105373491703247",
-            "12.023001909255981",
-            "50.013158377703746",
-        ],
-    ]
-
-    aoi.remove_img_metadata_file()
 
 
 # def test_download_image(mapillary_interface, mocker):

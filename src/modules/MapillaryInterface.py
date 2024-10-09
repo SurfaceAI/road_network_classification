@@ -67,49 +67,6 @@ class MapillaryInterface:
         return list(mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], zoom))
 
    
-    def query_metadata(self, aoi):
-        """
-        Query image metadata within a given area of interest and save to csv file.
-        """
-        # get all relevant tile ids
-        tiles = self.tiles_within_bbox(
-            [aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat], const.ZOOM
-        )
-
-        # download img metadata to csv: so that if download is interrupted, we can resume
-        # TODO: write directly into DB after each tile (without csv?)
-        with open(aoi.img_metadata_path, "w", newline="") as csvfile:
-            csvwriter = csv.writer(csvfile)
-            for i in tqdm(range(0, len(tiles))):
-                tile = tiles[i]
-                header, output = self.metadata_in_tile(tile)
-
-                if i == 0:
-                    csvwriter.writerow(header)
-                if output:
-                    for row in output:
-                        # filter img in bbox
-                        if (
-                            (row[header.index("lon")] > aoi.minLon)
-                            and (row[header.index("lon")] < aoi.maxLon)
-                            and (row[header.index("lat")] > aoi.minLat)
-                            and (row[header.index("lat")] < aoi.maxLat)
-                        ):
-                            if (
-                                not aoi.use_pano
-                                and row[header.index("is_pano")] == True
-                            ):
-                                continue
-                            if (
-                                aoi.userid
-                                and str(row[header.index("creator_id")]) != aoi.userid
-                            ):
-                                continue
-
-                            csvwriter.writerow(row)
-
-        logging.info(f"img metadata query complete")
-
     def metadata_in_tile(self, tile):
         """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
         Args:

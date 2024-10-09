@@ -25,7 +25,6 @@ class AreaOfInterest:
         Args:
             config (dict): Configuration dictionary containing the following keys:
                 - name (str): The name of the area of interest (aoi).
-                - data_path (str): The path where data for this aoi is stored.
                 - run (str): The run identifier, if different variations are tested.
                 - minLon (float): The minimum longitude of the bounding box (in EPSG:4326).
                 - minLat (float): The minimum latitude of the bounding box (in EPSG:4326).
@@ -49,7 +48,6 @@ class AreaOfInterest:
         # TODO: verify config inputs
 
         self.name = config["name"]
-        self.data_path = os.path.join(config["data_root"], config["name"])
         self.run = config["run"]
         self.minLon = config["minLon"]
         self.minLat = config["minLat"]
@@ -97,7 +95,6 @@ class AreaOfInterest:
             else config["custom_road_type_separation"]
         )
 
-        self.img_metadata_path = os.path.join(self.data_path, "img_metadata.csv")
         # model results paths
         self.pred_path = config["pred_path"]
         self.road_type_pred_path = config["road_type_pred_path"]
@@ -105,9 +102,6 @@ class AreaOfInterest:
         self.query_params = self._get_query_params()
         self.query_files = self._get_sql_query_files()
 
-    def remove_img_metadata_file(self):
-        os.remove(self.img_metadata_path)
-        self.img_metadata_path = None
 
     def _get_query_params(self):
         additional_id_column = (
@@ -117,8 +111,9 @@ class AreaOfInterest:
         additional_ways_id_column = (
             f"ways.{additional_id_column}" if additional_id_column != "" else ""
         )
-
-        folder = os.path.join(self.data_path, self.run)
+        
+        # TODO: remove
+        folder = os.path.join(src_dir, "data", self.run)
         surface_pred_csv_path = os.path.join(folder, "classification_results.csv")
         road_type_pred_csv_path = os.path.join(folder, "scenery_class_results.csv")
 
@@ -130,7 +125,6 @@ class AreaOfInterest:
             "bbox3": self.maxLat,
             "crs": self.proj_crs,
             "dist_from_road": self.dist_from_road,
-            "img_metadata_path": self.img_metadata_path,
             "surface_pred_csv_path": surface_pred_csv_path,
             "road_type_pred_csv_path": road_type_pred_csv_path,
             "additional_id_column": additional_id_column,
@@ -243,16 +237,16 @@ class AreaOfInterest:
 
         # TODO: querying img urls takes some time (approx. 22sec for 1000 imgs, depends on internet connection)
         # parallelize this step with img. classification (one batch url->img download->classification)
-        img_urls = mi.query_img_urls(
-            img_ids,
-            self.img_size,
-        )
+        # img_urls = mi.query_img_urls(
+        #     img_ids,
+        #     self.img_size,
+        # )
         img_data = []
-        for img_url in img_urls:
-            content = requests.get(img_url, stream=True).content
-            img_data.append(Image.open(io.BytesIO(content)))
+        # for img_url in img_urls:
+        #     content = requests.get(img_url, stream=True).content
+        #     img_data.append(Image.open(io.BytesIO(content)))
         
-        model_predictions = self.model_predict(img_data)
+        # model_predictions = self.model_predict(img_data)
         
         # TODO: bring directly into required format and add to db without writing csv
         self.format_pred_files()

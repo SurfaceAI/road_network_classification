@@ -8,5 +8,5 @@ CREATE TABLE {name}_img_metadata AS
   -- ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY random()) AS rn -- random selection
   ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY p.captured_at DESC) AS rn -- select most current
   FROM  {table_name} p
-) AS sampled
-WHERE rn <= {n_per_segment}; -- select n points per segment
+) AS sampled;
+--WHERE rn <= n_per_segment; -- select n points per segment
