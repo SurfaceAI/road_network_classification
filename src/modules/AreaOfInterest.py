@@ -239,11 +239,14 @@ class AreaOfInterest:
         road_type_pred.to_csv(self.query_params["road_type_pred_csv_path"], index=False)
 
     def classify_images(self, mi, db):
+        img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
+
+        # TODO: querying img urls takes some time (approx. 22sec for 1000 imgs, depends on internet connection)
+        # parallelize this step with img. classification (one batch url->img download->classification)
         img_urls = mi.query_img_urls(
-            db.img_ids_from_dbtable(f"{self.name}_img_metadata"),
+            img_ids,
             self.img_size,
         )
-
         img_data = []
         for img_url in img_urls:
             content = requests.get(img_url, stream=True).content
