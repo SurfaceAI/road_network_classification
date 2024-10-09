@@ -213,9 +213,9 @@ class AreaOfInterest:
                         ):
                             continue
 
-                        rows += row
+                        rows.append(row)
 
-            db.add_rows_to_table(f"{self.name}_img_metadata", rows)
+            db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
         db.execute_sql_query(self.query_files["add_geom_column"], self.query_params)
 
 
@@ -240,7 +240,8 @@ class AreaOfInterest:
 
     def classify_images(self, mi, db):
         img_urls = mi.query_img_urls(
-            db.img_ids_from_dbtable(f"{self.name}_img_metadata")
+            db.img_ids_from_dbtable(f"{self.name}_img_metadata"),
+            self.img_size,
         )
 
         img_data = []
