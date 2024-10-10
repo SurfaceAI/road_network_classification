@@ -14,7 +14,7 @@
     "dist_from_road": 10,
     "segment_length": 20,
     "min_road_length" : 10,
-    "segments_per_group": 100,
+    "segments_per_group": null,
 
     "custom_attrs": {},
     "additional_id_column": null,

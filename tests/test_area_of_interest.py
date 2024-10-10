@@ -26,7 +26,7 @@ def aoi():
             dist_from_road=10,
             min_road_length=10,
             segment_length=20,
-            segments_per_group=10,
+            segments_per_group=None,
             pred_path="pred_path",
             road_type_pred_path="road_type_pred_path",
         )
@@ -46,7 +46,7 @@ def test_initialization(aoi):
     assert aoi.dist_from_road == 10
     assert aoi.min_road_length == 10
     assert aoi.segment_length == 20
-    assert aoi.segments_per_group == 10
+    assert aoi.segments_per_group == None
 
 
 def test_model_predict(aoi):

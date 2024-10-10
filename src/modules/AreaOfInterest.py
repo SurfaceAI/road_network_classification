@@ -111,6 +111,9 @@ class AreaOfInterest:
         additional_ways_id_column = (
             f"ways.{additional_id_column}" if additional_id_column != "" else ""
         )
+        # if segments_per_group is None, then the eval groups are the entire length of the road segment, 
+        # # i.e., all subsegments have group_num 1
+        group_num = '0' if self.segments_per_group == None else f"segment_number / {self.segments_per_group}"
         
         # TODO: remove
         folder = os.path.join(src_dir, "data", self.run)
@@ -131,6 +134,7 @@ class AreaOfInterest:
             "additional_ways_id_column": additional_ways_id_column,
             "grouping_ids": grouping_ids,
             "segment_length": self.segment_length,
+            "group_num": group_num,
             "segments_per_group": self.segments_per_group,
             "min_road_length": self.min_road_length,
         }
