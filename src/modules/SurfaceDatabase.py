@@ -31,21 +31,18 @@ class SurfaceDatabase:
         self.pbf_path = pbf_path
         self.alt_road_network = alt_road_network
 
-        self.setup_database(dbname, pbf_path, alt_road_network)
+        self.setup_database(pbf_path, alt_road_network)
 
     def __repr__(self):
         return f"Database(name={self.dbname}, tables={self.get_table_names()}, input_road_network={self.pbf_path})"
 
-    def get_table_names(self):
-        # TODO
-        return []
 
-    def setup_database(self, dbname, pbf_path, alt_road_network=None):
+    def setup_database(self, pbf_path, alt_road_network=None):
         """
         Setup the database with the provided pbf file
         """
         res = subprocess.run(
-            r"psql -lqt | cut -d \| -f 1 | grep -w " + dbname,
+            r"psql -lqt | cut -d \| -f 1 | grep -w " + self.dbname,
             shell=True,
             executable="/bin/bash",
         )
@@ -58,24 +55,24 @@ class SurfaceDatabase:
             osmosis_scheme_file = os.path.join(
                 Path(os.path.dirname(__file__)).parent, "pgsnapshot_schema_0.6.sql"
             )
-            subprocess.run(f"createdb {dbname}", shell=True, executable="/bin/bash")
+            subprocess.run(f"createdb -h {self.dbhost} -U {self.dbhost} {self.dbname}", shell=True, executable="/bin/bash")
             subprocess.run(
-                f"psql  -d {dbname} -c 'CREATE EXTENSION postgis;'",
+                f"psql  -d {self.dbname} -c 'CREATE EXTENSION postgis;'",
                 shell=True,
                 executable="/bin/bash",
             )
             subprocess.run(
-                f"psql  -d {dbname} -c 'CREATE EXTENSION hstore;'",
+                f"psql  -d {self.dbname} -c 'CREATE EXTENSION hstore;'",
                 shell=True,
                 executable="/bin/bash",
             )
             subprocess.run(
-                f"psql -d {dbname} -f {osmosis_scheme_file}",
+                f"psql -d {self.dbname} -f {osmosis_scheme_file}",
                 shell=True,
                 executable="/bin/bash",
             )
             subprocess.run(
-                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={dbname}""",
+                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname}""",
                 shell=True,
                 executable="/bin/bash",
             )
