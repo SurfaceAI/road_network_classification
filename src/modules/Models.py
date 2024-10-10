@@ -30,10 +30,10 @@ class ModelInterface:
         )
         normalization = (const.NORM_MEAN, const.NORM_SD)
         transform = config.get('transform_surface') # TODO: combine transformnatuions
-        transform['normalization'] = normalization
+        transform['normalize'] = normalization
         self.transform_surface = transform
         transform = config.get('transform_road_type') # TODO: combine transformnatuions
-        transform['normalization'] = normalization
+        transform['normalize'] = normalization
         self.transform_road_type = transform 
         self.model_root = config.get('model_root')
         self.models = config.get('models')
@@ -99,6 +99,8 @@ class ModelInterface:
             transform_list.append(transforms.Lambda(partial(self.custom_crop, crop_style=crop)))
 
         if resize is not None:
+            if isinstance(resize, int):
+                resize = (resize, resize)
             transform_list.append(transforms.Resize(resize))
 
         if to_tensor:
@@ -111,24 +113,13 @@ class ModelInterface:
 
         return composed_transform
 
-    def preprocessing(self, img_urls, transform):
-
-        # TODO: process chunks of data for downloading/prediction
-        img_data_raw = []
-        idxs = []
-        for idx, img_url in tqdm(enumerate(img_urls), desc="Downloading images"): # TODO: Part of AOI
-            response = requests.get(img_url)
-            if response.status_code == 200:
-                img = Image.open(io.BytesIO(response.content))
-                img_data.append(img)
-                idxs.append(idx)
-
-        
+    def preprocessing(self, img_data_raw, transform):
+ 
         transform = self.transform(**transform)
 
         img_data = torch.stack([transform(img) for img in  img_data_raw])
 
-        return img_data, idxs # TODO: only return img_data
+        return img_data # TODO: only return img_data
     
     def load_model(self, model):
         model_path = os.path.join(self.model_root, model)
@@ -138,11 +129,11 @@ class ModelInterface:
         valid_dataset = model_state['dataset']
 
         if is_regression:
-            class_to_idx = valid_dataset.class_to_idx
+            class_to_idx = get_attribute(valid_dataset, "class_to_idx")
             classes = {str(i): cls for cls, i in class_to_idx.items()}
             num_classes = 1
         else:
-            classes = valid_dataset.classes
+            classes = get_attribute(valid_dataset, "classes")
             num_classes = len(classes)
         model = model_cls(num_classes)
         model.load_state_dict(model_state['model_state_dict'])
@@ -171,7 +162,7 @@ class ModelInterface:
         return batch_classes, batch_values      
 
 
-    def model_predict(self, img_data_raw, idxs):
+    def model_predict(self, img_data_raw):
         df = pd.DataFrame(columns=['road', 'road_prob', 'type', 'type_prob', 'quality_value'], index=range(len(img_data_raw)))
 
         # road type
@@ -190,7 +181,7 @@ class ModelInterface:
         df['type'] = pred_classes
         df['type_prob'] = pred_values
 
-        final_results = []
+        final_results = [] # TODO: update inplace?
         sub_models = self.models.get('surface_quality')
         for cls, group in df.groupby('type'):
             sub_indices = group.index.tolist()
@@ -210,17 +201,17 @@ class ModelInterface:
 
 
 class CustomEfficientNetV2SLinear(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, avg_pool=1):
         super(CustomEfficientNetV2SLinear, self).__init__()
 
         model = models.efficientnet_v2_s(weights='IMAGENET1K_V1')
         # adapt output layer
-        in_features = model.classifier[-1].in_features
+        in_features = model.classifier[-1].in_features * (avg_pool * avg_pool)
         fc = nn.Linear(in_features, num_classes, bias=True)
         model.classifier[-1] = fc
         
         self.features = model.features
-        self.avgpool = model.avgpool
+        self.avgpool = nn.AdaptiveAvgPool2d(avg_pool)
         self.classifier = model.classifier
         if num_classes == 1:
             self.criterion = nn.MSELoss
@@ -251,3 +242,14 @@ def string_to_object(string):
     }
 
     return string_dict.get(string)
+
+def get_attribute(obj, attribute_name):
+    # check for dict
+    if isinstance(obj, dict):
+        return obj.get(attribute_name)
+    # check for class instance
+    elif hasattr(obj, attribute_name):
+        return getattr(obj, attribute_name)
+    else:
+        raise TypeError("Object is not a dictionary or a class instance.")
+    

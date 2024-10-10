@@ -23,15 +23,15 @@
 
     "model_root": "src/models",
     "models": {
-        "surface_type": "surface-efficientNetV2SLinear-20240610_185408-j3ob3p5o_epoch6.pt",
+        "surface_type": "surface-efficientNetV2SLinear-20240923_171219-2t59l5b9_epoch10.pt",
         "surface_quality": {
-            "aspahlt": "smoothness-asphalt-efficientNetV2SLinear-20240610_235740-h8r4ubgv_epoch17.pt",
-            "concrete": "smoothness-concrete-efficientNetV2SLinear-20240611_003637-o35q8be6_epoch12.pt",
-            "paving_stones": "smoothness-paving_stones-efficientNetV2SLinear-20240611_011325-t3y17ezx_epoch17.pt",
-            "sett": "smoothness-sett-efficientNetV2SLinear-20240611_021327-s77xoig3_epoch15.pt",
-            "unpaved": "smoothness-unpaved-efficientNetV2SLinear-20240611_032059-19660tlf_epoch17.pt"
+            "asphalt": "smoothness-asphalt-efficientNetV2SLinear-20240923_144409-86vpv5bs_epoch29.pt",
+            "concrete": "smoothness-concrete-efficientNetV2SLinear-20240924_020702-32bp575u_epoch16.pt",
+            "paving_stones": "smoothness-paving_stones-efficientNetV2SLinear-20240924_035145-0u6eheod_epoch18.pt",
+            "sett": "smoothness-sett-efficientNetV2SLinear-20240924_103221-xrpbxnjc_epoch26.pt",
+            "unpaved": "smoothness-unpaved-efficientNetV2SLinear-20240924_131624-qfvm272n_epoch21.pt"
         },
-        "road_type": "flatten-efficientNetV2SLinear-20240613_103053-033v1uet_epoch17.pt"
+        "road_type": "flatten-efficientNetV2SLinear-20240917_125206-9lg7mdeu_epoch10.pt"
     },
     "gpu_kernel": 0,
     "transform_surface": {

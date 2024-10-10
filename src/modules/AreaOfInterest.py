@@ -11,6 +11,7 @@ src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
 import utils
 import constants as const
+from modules import Models
 
 from tqdm import tqdm
 
@@ -46,6 +47,7 @@ class AreaOfInterest:
         """
 
         # TODO: verify config inputs
+        self.config = config
 
         self.name = config["name"]
         self.run = config["run"]
@@ -241,16 +243,23 @@ class AreaOfInterest:
 
         # TODO: querying img urls takes some time (approx. 22sec for 1000 imgs, depends on internet connection)
         # parallelize this step with img. classification (one batch url->img download->classification)
-        # img_urls = mi.query_img_urls(
-        #     img_ids,
-        #     self.img_size,
-        # )
-        img_data = []
+        img_urls = mi.query_img_urls(
+            img_ids,
+            self.img_size,
+        )
+        # TODO: process chunks of data for downloading/prediction
+        img_data_raw = []
+        for _, img_url in tqdm(enumerate(img_urls), desc="Downloading images"): # TODO: Part of AOI
+            response = requests.get(img_url)
+            if response.status_code == 200:
+                img = Image.open(io.BytesIO(response.content))
+                img_data_raw.append(img)
         # for img_url in img_urls:
         #     content = requests.get(img_url, stream=True).content
         #     img_data.append(Image.open(io.BytesIO(content)))
         
-        # model_predictions = self.model_predict(img_data)
+        model_interface = Models.ModelInterface(self.config)
+        model_predictions = model_interface.model_predict(img_data_raw)
         
         # TODO: bring directly into required format and add to db without writing csv
         self.format_pred_files()
@@ -263,6 +272,8 @@ class AreaOfInterest:
             self.query_params
         )
 
+    # for test purpose only
     def model_predict(self, img_data):
-        pass
-
+        model_interface = Models.ModelInterface(self.config)
+        model_predictions = model_interface.model_predict(img_data)
+        return model_predictions
