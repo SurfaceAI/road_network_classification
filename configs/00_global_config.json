@@ -19,5 +19,27 @@
     "custom_attrs": {},
     "additional_id_column": null,
     "custom_sql_way_selection": false,
-    "custom_road_type_join": false
+    "custom_road_type_join": false,
+
+    "model_root": "src/models",
+    "models": {
+        "surface_type": "surface-efficientNetV2SLinear-20240610_185408-j3ob3p5o_epoch6.pt",
+        "surface_quality": {
+            "aspahlt": "smoothness-asphalt-efficientNetV2SLinear-20240610_235740-h8r4ubgv_epoch17.pt",
+            "concrete": "smoothness-concrete-efficientNetV2SLinear-20240611_003637-o35q8be6_epoch12.pt",
+            "paving_stones": "smoothness-paving_stones-efficientNetV2SLinear-20240611_011325-t3y17ezx_epoch17.pt",
+            "sett": "smoothness-sett-efficientNetV2SLinear-20240611_021327-s77xoig3_epoch15.pt",
+            "unpaved": "smoothness-unpaved-efficientNetV2SLinear-20240611_032059-19660tlf_epoch17.pt"
+        },
+        "road_type": "flatten-efficientNetV2SLinear-20240613_103053-033v1uet_epoch17.pt"
+    },
+    "gpu_kernel": 0,
+    "transform_surface": {
+        "resize": 384,
+        "crop": "lower_middle_half"
+    },
+    "transform_road_type": {
+        "resize": 384,
+        "crop": "lower_half"
+    }
 }

@@ -28,3 +28,11 @@ MAPILLARY_GRAPH_URL = "https://graph.mapillary.com/{}"
 TILE_COVERAGE = "mly1_public"
 TILE_LAYER = "image"  # "overview"
 ZOOM = 14
+
+# Model settings
+EFFNET_LINEAR = "efficientNetV2SLinear"
+CROP_LOWER_MIDDLE_THIRD = "lower_middle_third"
+CROP_LOWER_MIDDLE_HALF = "lower_middle_half"
+CROP_LOWER_HALF = "lower_half"
+NORM_MEAN = [0.42834484577178955, 0.4461250305175781, 0.4350937306880951]
+NORM_SD = [0.22991590201854706, 0.23555299639701843, 0.26348039507865906]
