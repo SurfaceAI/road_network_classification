@@ -116,6 +116,15 @@ class SurfaceDatabase:
 
         conn.close()
 
+    def execute_many_sql_query(self, query, value_list):
+        conn = self.create_dbconnection()
+
+        with conn.cursor(cursor_factory=DictCursor) as cursor:
+            cursor.executemany(query, value_list)
+            conn.commit()
+        conn.close()
+
+
     # TODO: fix function
     def table_exists(self, table_name):
         query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = {table_name});"
@@ -150,7 +159,10 @@ class SurfaceDatabase:
         conn.close()
         return img_ids
 
-    def add_rows_to_table(self, table_name, rows):
-        #TODO
-        query = """ """
-        #self.execute_sql_query(query, if_file=False)
+    def add_rows_to_table(self, table_name, header, rows):
+        # TODO: validate that header matches with table
+        columns = ", ".join(header)
+        placeholders = ", ".join(["%s"] * len(header))
+        flattened_rows = [tuple(row) for row in rows]
+        query = f'INSERT INTO {table_name} ({columns}) VALUES ({placeholders});'
+        self.execute_many_sql_query(query, flattened_rows)

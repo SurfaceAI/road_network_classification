@@ -14,6 +14,5 @@
     "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_all-20240810_170444.csv",
     "road_type_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_all-20240811_053246.csv",
     "custom_road_type_join": "src/sql/join_scenery_pred_berlin.sql",
-    "min_road_length" : 0,
-    "segments_per_group": 1000
+    "min_road_length" : 0
 }

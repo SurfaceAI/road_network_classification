@@ -7,12 +7,14 @@ import csv
 import mercantile
 from tqdm import tqdm
 import requests
+from requests.exceptions import ConnectTimeout
 from vt2geojson.tools import vt_bytes_to_geojson
 import time
 
 from itertools import repeat
 from tqdm import tqdm
 import concurrent.futures
+
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -65,49 +67,6 @@ class MapillaryInterface:
         return list(mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], zoom))
 
    
-    def query_metadata(self, aoi):
-        """
-        Query image metadata within a given area of interest and save to csv file.
-        """
-        # get all relevant tile ids
-        tiles = self.tiles_within_bbox(
-            [aoi.minLon, aoi.minLat, aoi.maxLon, aoi.maxLat], const.ZOOM
-        )
-
-        # download img metadata to csv: so that if download is interrupted, we can resume
-        # TODO: write directly into DB after each tile (without csv?)
-        with open(aoi.img_metadata_path, "w", newline="") as csvfile:
-            csvwriter = csv.writer(csvfile)
-            for i in tqdm(range(0, len(tiles))):
-                tile = tiles[i]
-                header, output = self.metadata_in_tile(tile)
-
-                if i == 0:
-                    csvwriter.writerow(header)
-                if output:
-                    for row in output:
-                        # filter img in bbox
-                        if (
-                            (row[header.index("lon")] > aoi.minLon)
-                            and (row[header.index("lon")] < aoi.maxLon)
-                            and (row[header.index("lat")] > aoi.minLat)
-                            and (row[header.index("lat")] < aoi.maxLat)
-                        ):
-                            if (
-                                not aoi.use_pano
-                                and row[header.index("is_pano")] == True
-                            ):
-                                continue
-                            if (
-                                aoi.userid
-                                and str(row[header.index("creator_id")]) != aoi.userid
-                            ):
-                                continue
-
-                            csvwriter.writerow(row)
-
-        logging.info(f"img metadata query complete")
-
     def metadata_in_tile(self, tile):
         """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
         Args:
@@ -168,6 +127,41 @@ class MapillaryInterface:
 
             return (header, output)
 
+
+    def query_img_url(self, img_id, img_size):
+        max_retries = 10
+        retries = 0
+        while retries < max_retries:
+            try:
+                response = requests.get(
+                    const.MAPILLARY_GRAPH_URL.format(int(img_id)),
+                    params={
+                        "fields": img_size,
+                        "access_token": self.token,
+                    },
+                    timeout=10,
+                )
+                if response.status_code != 200:
+                    logging.info(response.status_code)
+                    logging.info(response.reason)
+                    logging.info(f"image_id: {img_id}")
+                else:
+                    data = response.json()
+                    if img_size in data:
+                        return data[img_size]
+                    else:
+                        logging.info(f"no image size {img_size} for image {img_id}")
+            except ConnectTimeout:
+                retries += 1
+                wait_time =  (2 ** (retries - 1))*60
+                logging.info(f"Connection timed out. Retrying in {wait_time/60} minutes...")
+                time.sleep(wait_time)
+            except requests.exceptions.RequestException as e:
+                print(f"Request failed: {e}")
+                return None
+
+        return None
+
     def query_img_urls(self, img_ids, img_size):
         """Query img content urls for given Mapillary img ids
 
@@ -179,25 +173,36 @@ class MapillaryInterface:
             list: img_urls
         """
         img_urls = []
-        for img_id in img_ids:
-            response = requests.get(
-                const.MAPILLARY_GRAPH_URL.format(int(img_id)),
-                params={
-                    "fields": img_size,
-                    "access_token": self.token,
-                },
-            )
 
-            if response.status_code != 200:
-                logging.info(response.status_code)
-                logging.info(response.reason)
-                logging.info(f"image_id: {img_id}")
+        if self.parallel:
+            # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
+            if (self.parallel_batch_size is None) or (
+                self.parallel_batch_size > len(img_ids)
+            ):
+                parallel_batch_size = len(img_ids)
             else:
-                data = response.json()
-                if img_size in data:
-                    img_urls += data[img_size]
-                else:
-                    logging.info(f"no image size {img_size} for image {img_id}")
+                parallel_batch_size = self.parallel_batch_size
+            for batch_start in tqdm(range(0, len(img_ids), parallel_batch_size)):
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    batch_end = (
+                        batch_start + parallel_batch_size
+                        if batch_start + parallel_batch_size < len(img_ids)
+                        else len(img_ids)
+                    )
+
+                    batch_img_urls = list(executor.map(
+                        self.query_img_url,
+                        img_ids[batch_start:batch_end],
+                        repeat(img_size)
+                    ))
+                    img_urls.extend(batch_img_urls)
+
+        else:
+            for i in tqdm(range(0, len(img_ids))):
+                img_id = img_ids[i]
+                img_url = self.query_img_url(img_id, img_size)
+                img_urls.append(img_url)
+        img_urls = [item for item in img_urls if item is not None]
         return img_urls
 
 

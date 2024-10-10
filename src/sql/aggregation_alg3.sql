@@ -86,6 +86,7 @@ select {grouping_ids}, road_type, geometry from MissingGroups;
 CREATE TABLE RowsToKeep as
  WITH RankedRows AS (
     SELECT *,
+            st_transform(geometry, 4326) AS geom_4326,
            row_number() OVER (
                PARTITION BY {grouping_ids}
                ORDER BY segment_vote_count DESC, avg_img_counts DESC
@@ -97,7 +98,7 @@ CREATE TABLE RowsToKeep as
     avg_quality_pred, 
     road_type, 
     n_segments, avg_img_counts, sum_img_counts, 
-    min_captured_at, max_captured_at, geometry
+    min_captured_at, max_captured_at, geom_4326 as geometry
     FROM RankedRows
     WHERE row_num = 1
  ;

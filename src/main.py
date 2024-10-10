@@ -72,8 +72,6 @@ if __name__ == "__main__":
         parallel_batch_size=cg["parallel_batch_size"],
     )
 
-    # TODO: only append root_path if data_root is a relative path
-    cg["data_root"] = os.path.join(root_path, cg["data_root"])
     area_of_interest = aoi.AreaOfInterest(cg)
 
     # TODO: only append root_path if pbf_path is a relative path
@@ -88,11 +86,12 @@ if __name__ == "__main__":
 
     process_area_of_interest(surface_database, area_of_interest, mapillary_interface)
 
+    os.makedirs(os.path.join(root_path, "data"), exist_ok=True)
     # write results to shapefile
     output_file = os.path.join(
-        area_of_interest.data_path,
-        area_of_interest.run,
-        f"{area_of_interest.name}_pred.shp",
+        root_path,
+        "data",
+        f"{area_of_interest.name}_{area_of_interest.run}_pred.shp",
     )
     surface_database.table_to_shapefile(
         f"{area_of_interest.name}_group_predictions", output_file

@@ -2,12 +2,9 @@
 ALTER TABLE {name}_segmented_ways
 ADD COLUMN if not exists group_num INT;
 
---alter table {name}_point_selection drop column group_num;
-
 -- Update the table to set the group number based on segment_number
 UPDATE {name}_segmented_ways
-SET group_num = segment_number / {segments_per_group};
-
+SET group_num = {group_num};
 
 drop table if exists {name}_eval_groups ;
 drop table if exists {name}_group_predictions ;

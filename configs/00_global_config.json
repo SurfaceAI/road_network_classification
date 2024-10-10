@@ -1,20 +1,20 @@
 {
-    "parallel": true,
-    "parallel_batch_size" : 100,
-    "data_root" : "data",
+
     "dbname": "database",
     "dbuser": "user",
     "dbhost": "host",
     "dbpassword": "password",
     "pbf_path" : "data/germany-latest.osm.pbf",
+    
     "img_size": "thumb_2048_url",
+    "parallel": true,
+    "parallel_batch_size": 100,
+
     "proj_crs": 3035,
-    "n_per_segment" : null,
     "dist_from_road": 10,
     "segment_length": 20,
     "min_road_length" : 10,
-    "segments_per_group": 100,
-    "img_selection_csv_path": "img_selection.csv",
+    "segments_per_group": null,
 
     "custom_attrs": {},
     "additional_id_column": null,
