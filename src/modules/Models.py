@@ -1,25 +1,18 @@
 import os
 import sys
 from pathlib import Path
-import requests
 import pandas as pd
-import io
-from PIL import Image
 
 import torch
 from torch import nn, Tensor
 from torchvision import models, transforms
-# from torch.utils.data import Subset
 from functools import partial
 
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
-# import utils
 import constants as const
-
-from tqdm import tqdm
 
 class ModelInterface:
 
@@ -29,10 +22,11 @@ class ModelInterface:
             f"cuda:{config.get('gpu_kernel')}" if torch.cuda.is_available() else "cpu"
         )
         normalization = (const.NORM_MEAN, const.NORM_SD)
-        transform = config.get('transform_surface') # TODO: combine transformnatuions
+        # TODO: config is changed by transform['normalize'] = normalization
+        transform = config.get('transform_surface')
         transform['normalize'] = normalization
         self.transform_surface = transform
-        transform = config.get('transform_road_type') # TODO: combine transformnatuions
+        transform = config.get('transform_road_type')
         transform['normalize'] = normalization
         self.transform_road_type = transform 
         self.model_root = config.get('model_root')
@@ -79,17 +73,6 @@ class ModelInterface:
             - crop (string): crop style e.g. 'lower_middle_third'
             - to_tensor (bool): Converts the PIL Image (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
             - normalize (tuple of lists [r, g, b] or None): Mean and standard deviation for normalization.
-            - random_rotation (float (non-negative) or None): Maximum rotation angle in degrees for random rotation.
-            - random_horizontal_flip (bool): Flip right-left with 0.5 probability.
-            - random_vertical_flip (bool):  Flip top-bottom with 0.5 probability.
-            - color_jitter (tuple of 4 or None): Randomly change the brightness, contrast, saturation and hue.
-                - brightness between 0 and 1 or None
-                - contrast between 0 and 1 or None
-                - saturation between 0 and 1 or None
-                - hue between 0 and 0.5 or None
-            - gaussian_blur_kernel (odd int or None): Kernel size for image Gaussian blur.
-            - gaussian_blur_sigma (float or None): Sigma or max sigma for randomly chosen Gaussian blur.
-            - gaussian_blur_fixed (boolean): True for fixed sigma, False for range
 
         Returns:
             PyTorch image transformation function.
@@ -111,30 +94,26 @@ class ModelInterface:
             transform_list.append(transforms.Normalize(*normalize))
 
         composed_transform = transforms.Compose(transform_list)
-
         return composed_transform
 
     def preprocessing(self, img_data_raw, transform):
- 
         transform = self.transform(**transform)
-
         img_data = torch.stack([transform(img) for img in  img_data_raw])
-
-        return img_data # TODO: only return img_data
+        return img_data
     
     def load_model(self, model):
         model_path = os.path.join(self.model_root, model)
         model_state = torch.load(model_path, map_location=self.device)
-        model_cls = string_to_object(model_state['config']['model'])
+        model_cls = model_mapping[model_state['config']['model']]
         is_regression = model_state['config']["is_regression"]
         valid_dataset = model_state['dataset']
 
         if is_regression:
-            class_to_idx = get_attribute(valid_dataset, "class_to_idx")
+            class_to_idx = valid_dataset.get("class_to_idx")
             classes = {str(i): cls for cls, i in class_to_idx.items()}
             num_classes = 1
         else:
-            classes = get_attribute(valid_dataset, "classes")
+            classes = valid_dataset.get("classes")
             num_classes = len(classes)
         model = model_cls(num_classes)
         model.load_state_dict(model_state['model_state_dict'])
@@ -163,42 +142,53 @@ class ModelInterface:
         return batch_classes, batch_values      
 
 
-    def batch_classifications(self, img_data_raw): # TODO: list of list
-        df = pd.DataFrame(columns=['road', 'road_prob', 'type', 'type_prob', 'quality_value'], index=range(len(img_data_raw))) # TODO: array or list
-
+    def batch_classifications(self, img_data_raw):
         # road type
         model, classes, is_regression = self.load_model(model=self.models.get('road_type'))
         data = self.preprocessing(img_data_raw, self.transform_road_type)
-        pred_classes, pred_values = self.predict(model, data, is_regression, classes)
-
-        df['road'] = pred_classes
-        df['road_prob'] = pred_values
+        road_pred_classes, road_pred_values = self.predict(model, data, is_regression, classes)
+        road_pred_values = [round(value, 5) for value in road_pred_values]
 
         # surface type
         model, classes, is_regression = self.load_model(model=self.models.get('surface_type'))
         data = self.preprocessing(img_data_raw, self.transform_surface)
-        pred_classes, pred_values = self.predict(model, data, is_regression, classes)
+        surface_pred_classes, surface_pred_values = self.predict(model, data, is_regression, classes)
+        surface_pred_values = [round(value, 5) for value in surface_pred_values]
 
-        df['type'] = pred_classes
-        df['type_prob'] = pred_values
 
-        final_results = [] # TODO: update inplace?
+        # surface quality
         sub_models = self.models.get('surface_quality')
-        for cls, group in df.groupby('type'):
-            sub_indices = group.index.tolist()
-            sub_model = sub_models.get(cls)
-            if sub_indices and sub_model is not None:
+
+        surface_indices = {}
+        for i, surface_type in enumerate(surface_pred_classes):
+            if surface_type not in surface_indices:
+                surface_indices[surface_type] = []
+            surface_indices[surface_type].append(i)
+
+        quality_pred_values = [None] * len(img_data_raw)
+        for surface_type, indices in surface_indices.items():
+            sub_model = sub_models.get(surface_type)
+            if sub_model is not None:
                 model, classes, is_regression = self.load_model(model=sub_model)
-                sub_data = data[sub_indices]
-                pred_classes, pred_values = self.predict(model, sub_data, is_regression, classes)
+                sub_data = data[indices]
+                _, pred_values = self.predict(model, sub_data, is_regression, classes)
+                pred_values = [round(value, 5) for value in pred_values]
 
-                # group['quality'] = pred_classes # TODO: not relevant
-                group['quality_value'] = pred_values
-            final_results.append(group)
-        final_df = pd.concat(final_results)
+                for i, idx in enumerate(indices):
+                    quality_pred_values[idx] = pred_values[i]
+
+        # final results combination
+        final_results = []
+        for i in range(len(img_data_raw)):
+            road = road_pred_classes[i]
+            road_prob = road_pred_values[i]
+            surface = surface_pred_classes[i]
+            surface_prob = surface_pred_values[i]
+            quality_value = quality_pred_values[i]
+
+            final_results.append([road, road_prob, surface, surface_prob, quality_value])
         
-
-        return final_df
+        return final_results
 
 
 class CustomEfficientNetV2SLinear(nn.Module):
@@ -236,21 +226,6 @@ class CustomEfficientNetV2SLinear(nn.Module):
     def get_optimizer_layers(self):
         return self.classifier
 
-def string_to_object(string):
-
-    string_dict = {
-        const.EFFNET_LINEAR: CustomEfficientNetV2SLinear,
-    }
-
-    return string_dict.get(string)
-
-def get_attribute(obj, attribute_name): # TODO raus
-    # check for dict
-    if isinstance(obj, dict):
-        return obj.get(attribute_name)
-    # check for class instance
-    elif hasattr(obj, attribute_name):
-        return getattr(obj, attribute_name)
-    else:
-        raise TypeError("Object is not a dictionary or a class instance.")
-    
+model_mapping = {
+    const.EFFNET_LINEAR: CustomEfficientNetV2SLinear,
+}
