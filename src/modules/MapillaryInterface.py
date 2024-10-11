@@ -4,7 +4,6 @@ import sys
 import logging
 
 import csv
-import mercantile
 from tqdm import tqdm
 import requests
 from requests.exceptions import ConnectTimeout
@@ -40,32 +39,34 @@ class MapillaryInterface:
         self.parallel = parallel
         self.parallel_batch_size = parallel_batch_size
 
-    def tiles_within_boundary(self, boundary, zoom):
-        """
-        Calculates and returns the tiles that fall within a given boundary defined by a polygon (GeoDataFrame).
 
-        Args:
-            boundary (GeoDataFrame): A GeoDataFrame representing the boundary.
-
-        Returns:
-            list: A list of mercantile.Tiles that are within the bbox.
-        """
-        bbox = boundary.total_bounds
-        return self.tiles_within_bbox(bbox, zoom)
-
-    def tiles_within_bbox(self, bbox, zoom):
-        """
-        Calculates and returns the tiles that fall within a bounding box.
-
-        Args:
-            bbox (list): A list of bounding box coordinates [minLon, minLat, maxLon, maxLat]
-            zoom (int): Zoom level of the mercantile tiles
-
-        Returns:
-            list: A list of mercantile.Tiles that are within the bbox.
-        """
-        return list(mercantile.tiles(bbox[0], bbox[1], bbox[2], bbox[3], zoom))
-
+    def query_mapillary(self, request_url, request_params, request_timeout=10, max_retries=10):
+        max_retries = 10
+        retries = 0
+        while retries < max_retries:
+            try:
+                response = requests.get(
+                    request_url,
+                    params=request_params,
+                    timeout=request_timeout,
+                )
+                if response.status_code != 200:
+                    logging.info(response.status_code)
+                    logging.info(response.reason)
+                    #logging.info(f"image_id: {img_id}")
+                    return None
+                else:
+                    return response
+            except ConnectTimeout:
+                retries += 1
+                wait_time =  (2 ** (retries - 1))*60
+                logging.info(f"Connection timed out. Retrying in {wait_time/60} minutes...")
+                time.sleep(wait_time)
+            except requests.exceptions.RequestException as e:
+                print(f"Request failed: {e}")
+                return None
+        return None
+    
    
     def metadata_in_tile(self, tile):
         """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
@@ -89,25 +90,18 @@ class MapillaryInterface:
         tile_id = str(int(tile.x)) + "_" + str(int(tile.y)) + "_" + str(int(tile.z))
 
         output = list()
-        response = requests.get(
+        response = self.query_mapillary(
             const.MAPILLARY_TILE_URL.format(
                 const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
             ),
-            params={"access_token": self.token},
+            {"access_token": self.token}
         )
-
-        if response.status_code != 200:
-            logging.info(response.status_code)
-            logging.info(response.reason)
-            logging.info(f"tile_id: {tile_id}")
-
-            return (header, False)
-
+        if response is None:
+            return (header, None)
         else:
             data = vt_bytes_to_geojson(
                 response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
             )
-
             # a feature is a point/image
             # TODO: can this be speed up?
             for feature in data["features"]:
@@ -124,42 +118,23 @@ class MapillaryInterface:
                         feature["geometry"]["coordinates"][1],
                     ]
                 )
-
             return (header, output)
 
 
     def query_img_url(self, img_id, img_size):
-        max_retries = 10
-        retries = 0
-        while retries < max_retries:
-            try:
-                response = requests.get(
-                    const.MAPILLARY_GRAPH_URL.format(int(img_id)),
-                    params={
-                        "fields": img_size,
-                        "access_token": self.token,
-                    },
-                    timeout=10,
-                )
-                if response.status_code != 200:
-                    logging.info(response.status_code)
-                    logging.info(response.reason)
-                    logging.info(f"image_id: {img_id}")
-                else:
-                    data = response.json()
-                    if img_size in data:
-                        return data[img_size]
-                    else:
-                        logging.info(f"no image size {img_size} for image {img_id}")
-            except ConnectTimeout:
-                retries += 1
-                wait_time =  (2 ** (retries - 1))*60
-                logging.info(f"Connection timed out. Retrying in {wait_time/60} minutes...")
-                time.sleep(wait_time)
-            except requests.exceptions.RequestException as e:
-                print(f"Request failed: {e}")
-                return None
-
+        response = self.query_mapillary(
+            const.MAPILLARY_GRAPH_URL.format(int(img_id)),
+            {
+                "fields": img_size,
+                "access_token": self.token,
+            }
+        )
+        data = response.json()
+        if data != None:
+            if img_size in data:
+                return data[img_size]
+            else:
+                logging.info(f"no image size {img_size} for image {img_id}")
         return None
 
     def query_img_urls(self, img_ids, img_size):

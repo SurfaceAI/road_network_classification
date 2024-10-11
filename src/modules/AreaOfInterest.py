@@ -1,10 +1,9 @@
 import os
 import sys
 from pathlib import Path
-import requests
+import numpy as np
 import pandas as pd
-import io
-from PIL import Image
+import mercantile
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -185,40 +184,25 @@ class AreaOfInterest:
         # get all relevant tile ids
         db.execute_sql_query(self.query_files["create_img_metadata_table"], self.query_params)
 
-        tiles = mi.tiles_within_bbox(
-            [self.minLon, self.minLat, self.maxLon, self.maxLat], const.ZOOM
-        )
+        tiles = list(mercantile.tiles(self.minLon, self.minLat, self.maxLon, self.maxLat,  const.ZOOM))
 
-        rows = []
         for i in tqdm(range(0, len(tiles))):
             tile = tiles[i]
             header, output = mi.metadata_in_tile(tile)
-            if output:
-                for row in output:
-                    # filter img in bbox
-                    if (
-                        (row[header.index("lon")] > self.minLon)
-                        and (row[header.index("lon")] < self.maxLon)
-                        and (row[header.index("lat")] > self.minLat)
-                        and (row[header.index("lat")] < self.maxLat)
-                    ):
-                        if (
-                            not self.use_pano
-                            and row[header.index("is_pano")] == True
-                        ):
-                            continue
-                        if (
-                            self.userid
-                            and str(row[header.index("creator_id")]) != self.userid
-                        ):
-                            continue
-
-                        rows.append(row)
-
-            db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
+            rows = np.array(output)
+            if len(rows) == 0:
+                continue
+            rows = rows[(rows[:, header.index("lon")].astype(float) >= self.minLon) &
+                       (rows[:, header.index("lon")].astype(float) <= self.maxLon) &
+                       (rows[:, header.index("lat")].astype(float) >= self.minLat) &
+                       (rows[:, header.index("lat")].astype(float) <= self.maxLat)]
+            if not self.use_pano and len(rows) > 0:
+                rows = rows[rows[:, header.index("is_pano")] == 'False']
+            if self.userid and len(rows) > 0:
+                rows = rows[rows[:, header.index("creator_id")] == self.userid]
+            if len(rows) > 0:
+                db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
         db.execute_sql_query(self.query_files["add_geom_column"], self.query_params)
-
-
 
     def format_pred_files(self):
         file_path = self.query_params["surface_pred_csv_path"]
