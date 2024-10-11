@@ -162,8 +162,8 @@ class ModelInterface:
         return batch_classes, batch_values      
 
 
-    def model_predict(self, img_data_raw):
-        df = pd.DataFrame(columns=['road', 'road_prob', 'type', 'type_prob', 'quality_value'], index=range(len(img_data_raw)))
+    def batch_classifications(self, img_data_raw): # TODO: list of list
+        df = pd.DataFrame(columns=['road', 'road_prob', 'type', 'type_prob', 'quality_value'], index=range(len(img_data_raw))) # TODO: array or list
 
         # road type
         model, classes, is_regression = self.load_model(model=self.models.get('road_type'))
@@ -243,7 +243,7 @@ def string_to_object(string):
 
     return string_dict.get(string)
 
-def get_attribute(obj, attribute_name):
+def get_attribute(obj, attribute_name): # TODO raus
     # check for dict
     if isinstance(obj, dict):
         return obj.get(attribute_name)
