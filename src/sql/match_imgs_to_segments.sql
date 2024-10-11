@@ -44,6 +44,7 @@ CREATE TABLE temp_table AS (
 -- img within close proximity of how many roads?
 ALTER TABLE temp_table ADD COLUMN num_closeby_ways INT;
 
+-- TODO: compute distance between points and roads only once
 CREATE TEMP TABLE CloseByRoads AS
   SELECT img.img_id, COUNT(*) AS num_closeby_ways
   FROM temp_table AS img

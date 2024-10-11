@@ -6,6 +6,7 @@ data/*
 .DS_Store
 *.qgz
 .vscode
+poetry.lock
 
 
 # Byte-compiled / optimized / DLL files

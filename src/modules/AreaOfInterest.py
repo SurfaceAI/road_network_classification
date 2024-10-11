@@ -1,6 +1,8 @@
 import os
 import sys
 from pathlib import Path
+
+import mercantile
 import numpy as np
 import pandas as pd
 import mercantile
@@ -10,17 +12,17 @@ import io
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
-import utils
-import constants as const
-from modules import Models
-
 from tqdm import tqdm
+
+import constants as const
+import utils
+from modules import Models
 
 
 class AreaOfInterest:
     """The area of interest, defined by a bounding box, that the surface is classified for."""
 
-    def __init__(self, config):
+    def __init__(self, config: dict):
         """
         Initializes an AreaOfInterest instance.
 
@@ -43,72 +45,52 @@ class AreaOfInterest:
                 - custom_road_type_join (bool, optional): Custom SQL query for road type join. Defaults to False.
                 - custom_attrs (dict, optional): Custom attributes for road network. Defaults to {}.
                 - custom_road_type_separation (bool, optional): Custom road type separation SQL script. Defaults to False.
-                - pred_path (str): Path to the model prediction output.
-                - road_type_pred_path (str): Path to the road type prediction output.
         """
 
         # TODO: verify config inputs
         self.config = config
 
-        self.name = config["name"]
-        self.run = config["run"]
-        self.minLon = config["minLon"]
-        self.minLat = config["minLat"]
-        self.maxLon = config["maxLon"]
-        self.maxLat = config["maxLat"]
-        self.proj_crs = config["proj_crs"]
+        self.name = config.get("name")
+        self.run = config.get("run")
+        self.minLon = config.get("minLon")
+        self.minLat = config.get("minLat")
+        self.maxLon = config.get("maxLon")
+        self.maxLat = config.get("maxLat")
+        self.proj_crs = config.get("proj_crs")
 
         # img variables
-        self.img_size = config["img_size"]
+        self.img_size = config.get("img_size")
         self.userid = (
-            False if "userid" not in config.keys() else config["userid"]
+            False if "userid" not in config.keys() else config.get("userid")
         )  # only limited to a specific user id? TODO: implement
         self.use_pano = (
-            False if "use_pano" not in config.keys() else config["use_pano"]
+            False if "use_pano" not in config.keys() else config.get("use_pano")
         )  # exclude panoramic images
-        self.dist_from_road = config["dist_from_road"]
+        self.dist_from_road = config.get("dist_from_road")
 
         # road network variables
-        self.min_road_length = config["min_road_length"]
-        self.segment_length = config["segment_length"]
-        self.segments_per_group = config["segments_per_group"]
+        self.min_road_length = config.get("min_road_length")
+        self.segment_length = config.get("segment_length")
+        self.segments_per_group = config.get("segments_per_group")
 
         # customizations
         self.additional_id_column = (
             None
             if "additional_id_column" not in config.keys()
-            else config["additional_id_column"]
+            else config.get("additional_id_column")
         )
-        self.custom_sql_way_selection = (
-            False
-            if "custom_sql_way_selection" not in config.keys()
-            else config["custom_sql_way_selection"]
-        )
-        self.custom_road_type_join = (
-            False
-            if "custom_road_type_join" not in config.keys()
-            else config["custom_road_type_join"]
-        )
-        self.custom_attrs = (
-            {} if "custom_attrs" not in config.keys() else config["custom_attrs"]
-        )
-        self.custom_road_type_separation = (
-            False
-            if "custom_road_type_separation" not in config.keys()
-            else config["custom_road_type_separation"]
-        )
-
-        # model results paths
-        self.pred_path = config["pred_path"]
-        self.road_type_pred_path = config["road_type_pred_path"]
+        self.custom_sql_way_selection = config.get("custom_sql_way_selection", False)
+        self.custom_road_type_join = config.get("custom_road_type_join", False)
+        self.custom_attrs = config.get("custom_attrs", {})
+        self.custom_road_type_separation = config.get("custom_road_type_separation",False)
 
         self.query_params = self._get_query_params()
-        self.query_files = self._get_sql_query_files()
+        self.custom_query_files = self._get_custom_query_files()
 
 
     def _get_query_params(self):
         additional_id_column = (
-            f"{self.additional_id_column}," if self.additional_id_column != None else ""
+            f"{self.additional_id_column}," if self.additional_id_column is not None else ""
         )  # add comma
         grouping_ids = f"{additional_id_column}id,part_id,group_num"
         additional_ways_id_column = (
@@ -119,9 +101,9 @@ class AreaOfInterest:
         group_num = '0' if self.segments_per_group == None else f"segment_number / {self.segments_per_group}"
         
         # TODO: remove
-        folder = os.path.join(src_dir, "data", self.run)
-        surface_pred_csv_path = os.path.join(folder, "classification_results.csv")
-        road_type_pred_csv_path = os.path.join(folder, "scenery_class_results.csv")
+        folder = src_dir / "data" / self.run
+        surface_pred_csv_path = folder / "classification_results.csv"
+        road_type_pred_csv_path = folder / "scenery_class_results.csv"
 
         return {
             "name": self.name,
@@ -142,49 +124,23 @@ class AreaOfInterest:
             "min_road_length": self.min_road_length,
         }
 
-    def _get_sql_query_files(self):
-        way_selection_query = (
+    def _get_custom_query_files(self):
+        return {
+            "way_selection": (
             const.SQL_WAY_SELECTION
             if not self.custom_sql_way_selection
             else self.custom_sql_way_selection
-        )
-
-        add_surface_pred_results = (
-            const.SQL_JOIN_MODEL_PRED_DIR
-            if self.use_pano
-            else const.SQL_JOIN_MODEL_PRED
-        )
-
-        add_road_type_pred_results = (
-            const.SQL_JOIN_TYPE_PRED
-            if not self.custom_road_type_join
-            else self.custom_road_type_join
-        )
-
-        roadtype_separation = (
+        ),
+            "roadtype_separation": (
             const.SQL_ASSIGN_ROAD_TYPES
             if not self.custom_road_type_separation
             else self.custom_road_type_separation
         )
-
-        return {
-            "add_img_metadata_table": const.SQL_IMGS_TO_DB,
-            "create_img_metadata_table": const.SQL_CREATE_IMG_METADATA_TABLE,
-            "add_geom_column": const.SQL_ADD_GEOM_COLUMN,
-            "way_selection": way_selection_query,
-            "segment_ways": const.SQL_SEGMENT_WAYS,
-            "match_img_roads": const.SQL_MATCH_IMG_ROADS,
-            "add_surface_pred_results": add_surface_pred_results,
-            "add_road_type_pred_results": add_road_type_pred_results,
-            "roadtype_separation": roadtype_separation,
-            "aggregate_on_roads_1": const.SQL_AGGREGATE_ON_ROADS.format(1),
-            "aggregate_on_roads_2": const.SQL_AGGREGATE_ON_ROADS.format(2),
-            "aggregate_on_roads_3": const.SQL_AGGREGATE_ON_ROADS.format(3),
         }
 
     def get_and_write_img_metadata(self, mi, db): 
         # get all relevant tile ids
-        db.execute_sql_query(self.query_files["create_img_metadata_table"], self.query_params)
+        db.execute_sql_query(const.SQL_CREATE_IMG_METADATA_TABLE, self.query_params)
 
         tiles = list(mercantile.tiles(self.minLon, self.minLat, self.maxLon, self.maxLat,  const.ZOOM))
 
@@ -204,7 +160,7 @@ class AreaOfInterest:
                 rows = rows[rows[:, header.index("creator_id")] == self.userid]
             if len(rows) > 0:
                 db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
-        db.execute_sql_query(self.query_files["add_geom_column"], self.query_params)
+        db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
 
     def format_pred_files(self):
         file_path = self.query_params["surface_pred_csv_path"]
@@ -225,40 +181,30 @@ class AreaOfInterest:
         road_type_pred.to_csv(self.query_params["road_type_pred_csv_path"], index=False)
 
     def classify_images(self, mi, db, md):
+        import time
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
+        #img_ids = ["1000068877331935", "1000140361462393"]
 
-        # TODO: querying img urls takes some time (approx. 22sec for 1000 imgs, depends on internet connection)
-        # parallelize this step with img. classification (one batch url->img download->classification)
         for i in tqdm(range(0, len(img_ids), md.batch_size), desc="Download and classify images"):
             j = min(i+md.batch_size, len(img_ids))
-            img_urls = mi.query_img_urls(
+
+            #start = time.time()
+            img_data = mi.query_imgs(
                 img_ids[i:j],
                 self.img_size,
             )
-            
-            img_data = []
-            for img_url in img_urls:
-                response = mi.query_mapillary(img_url)
-                if response != None:
-                    img = Image.open(io.BytesIO(response.content))
-                    img_data.append(img)
-            
+            #print(f"img download {time.time() - start}")
+            start = time.time()
             model_output = md.batch_classifications(img_data)
-            # TODO: merge model output and image ids
-        
-        # # TODO: bring directly into required format and add to db without writing csv
-        # self.format_pred_files()
-
-        # db.execute_sql_query(self.query_files["add_surface_pred_results"], 
-        #                      self.query_params
-        #                      )
-        # db.execute_sql_query(
-        #     self.query_files["add_road_type_pred_results"], 
-        #     self.query_params
-        # )
-
-    # for test purpose only
-    def model_predict(self, img_data):
-        model_interface = Models.ModelInterface(self.config)
-        model_predictions = model_interface.batch_classifications(img_data)
-        return model_predictions
+            #print(f"img classification {time.time() - start}")
+            
+            # TODO: current fix to turn pd to list of lists
+            model_output = model_output.values.tolist()
+            # add img_id to model_output
+            value_list = [mo + [img_id] for img_id, mo in zip(img_ids[i:j], model_output)]
+            #start = time.time()
+            db.execute_many_sql_query(const.SQL_ADD_MODEL_PRED, 
+                                      value_list, params={"name": self.name})
+            #print(f"db insert {time.time() - start}")
+            
+        db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)

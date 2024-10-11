@@ -1,24 +1,21 @@
-import os
-from pathlib import Path
-import sys
+import concurrent.futures
 import logging
+import os
+import sys
+import io
+import time
+from itertools import repeat
+from pathlib import Path
+from PIL import Image
 
-import csv
-from tqdm import tqdm
 import requests
 from requests.exceptions import ConnectTimeout
-from vt2geojson.tools import vt_bytes_to_geojson
-import time
-
-from itertools import repeat
 from tqdm import tqdm
-import concurrent.futures
-
+from vt2geojson.tools import vt_bytes_to_geojson
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
-import utils
 import constants as const
 
 
@@ -121,7 +118,7 @@ class MapillaryInterface:
             return (header, output)
 
 
-    def query_img_url(self, img_id, img_size):
+    def query_img (self, img_id, img_size):
         response = self.query_mapillary(
             const.MAPILLARY_GRAPH_URL.format(int(img_id)),
             {
@@ -129,15 +126,17 @@ class MapillaryInterface:
                 "access_token": self.token,
             }
         )
-        data = response.json()
-        if data != None:
+        if response is not None:
+            data = response.json()
             if img_size in data:
-                return data[img_size]
+                response = self.query_mapillary(data[img_size], {})
+                if response is not None:
+                    return Image.open(io.BytesIO(response.content))
             else:
                 logging.info(f"no image size {img_size} for image {img_id}")
         return None
 
-    def query_img_urls(self, img_ids, img_size):
+    def query_imgs(self, img_ids, img_size):
         """Query img content urls for given Mapillary img ids
 
         Args:
@@ -147,7 +146,7 @@ class MapillaryInterface:
         Returns:
             list: img_urls
         """
-        img_urls = []
+        imgs = []
 
         if self.parallel:
             # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
@@ -157,134 +156,26 @@ class MapillaryInterface:
                 parallel_batch_size = len(img_ids)
             else:
                 parallel_batch_size = self.parallel_batch_size
-            for batch_start in tqdm(range(0, len(img_ids), parallel_batch_size)):
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    batch_end = (
-                        batch_start + parallel_batch_size
-                        if batch_start + parallel_batch_size < len(img_ids)
-                        else len(img_ids)
-                    )
 
-                    batch_img_urls = list(executor.map(
-                        self.query_img_url,
-                        img_ids[batch_start:batch_end],
+            for i in range(0, len(img_ids), parallel_batch_size):
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    j = min(
+                        i + parallel_batch_size,
+                        len(img_ids))
+
+                    batch_imgs = list(executor.map(
+                        self.query_img,
+                        img_ids[i:j],
                         repeat(img_size)
                     ))
-                    img_urls.extend(batch_img_urls)
+                    imgs.extend(batch_imgs)
 
         else:
             for i in tqdm(range(0, len(img_ids))):
                 img_id = img_ids[i]
-                img_url = self.query_img_url(img_id, img_size)
-                img_urls.append(img_url)
-        img_urls = [item for item in img_urls if item is not None]
-        return img_urls
+                img = self.query_img(img_id, img_size)
+                imgs.append(img)
+        
+        imgs = [item for item in imgs if item is not None]
+        return imgs
 
-
-#######
-# def download_imgs_from_table(
-#     self,
-#     dest_folder,
-#     img_size,
-#     csv_path=None,
-#     img_id_col=1,
-#     database=None,
-#     db_table=None,
-# ):
-#     """Download images based on image IDs in a csv file or database table
-
-#     Args:
-#         dest_folder (str): Destination folder to save images to
-#         img_size (str): Size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-#         csv_path (str, optional): Path to csv file with image IDs. If database table is given, set to None. Defaults to None.
-#         img_id_col (int, optional): Column in csv file with image IDs. Defaults to 1.
-#         database (SurfaceDatabase, optional): SurfaceDatabase object. If csv_path is given, set to None. Defaults to None.
-#         db_table (str, optional): Database table with image IDs. If csv_path is given, set to None. Defaults to None.
-#     """
-
-#     if csv_path:
-#         img_ids = utils.img_ids_from_csv(csv_path, img_id_col=img_id_col)
-#     elif db_table:
-#         img_ids = database.img_ids_from_dbtable(db_table)
-
-#     # only download images that are not present yet in download folder
-#     if os.path.exists(dest_folder):
-#         imgs_in_download_folder = os.listdir(dest_folder)
-#         imgIDs_in_download_folder = [
-#             img_id.split(".")[0] for img_id in imgs_in_download_folder
-#         ]
-#         img_ids = list(set(img_ids) - set(imgIDs_in_download_folder))
-
-#     logging.info(f"Downloading {len(img_ids)} images")
-#     self.download_images(img_ids, img_size, dest_folder)
-
-# def download_images(self, image_ids, img_size, dest_folder):
-#     """Download images of given image_ids and save to given image_folder
-
-#     Args:
-#         img_ids (list): IDs of images to download
-#         img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-#         img_folder (str): path of folder to save image to
-#     """
-
-#     start = time.time()
-#     os.makedirs(dest_folder, exist_ok=True)
-
-#     if self.parallel:
-#         # only download batch_size at a time (otherwise we get connectionErrors with Mapillary)
-#         if (self.parallel_batch_size is None) or (
-#             self.parallel_batch_size > len(image_ids)
-#         ):
-#             parallel_batch_size = len(image_ids)
-#         else:
-#             parallel_batch_size = self.parallel_batch_size
-#         for batch_start in tqdm(range(0, len(image_ids), parallel_batch_size)):
-#             with concurrent.futures.ThreadPoolExecutor() as executor:
-#                 batch_end = (
-#                     batch_start + parallel_batch_size
-#                     if batch_start + parallel_batch_size < len(image_ids)
-#                     else len(image_ids)
-#                 )
-
-#                 executor.map(
-#                     self.download_image,
-#                     image_ids[batch_start:batch_end],
-#                     repeat(img_size),
-#                     repeat(dest_folder),
-#                 )
-#     else:
-#         for i in tqdm(range(0, len(image_ids))):
-#             self.download_image(int(image_ids[i]), img_size, dest_folder)
-#     logging.info(f"{round((time.time()-start )/ 60)} mins")
-
-# def download_image(self, img_id, img_size, dest_folder):
-#     """Download image file based on img_id and save to given image_folder
-
-#     Args:
-#         img_id (str): ID of image to download
-#         img_size (str): size of image to download (e.g. thumb_1024_url, thumb_2048_url, thumb_original_url)
-#         img_folder (str): path of folder to save image to
-#     """
-#     response = requests.get(
-#         const.MAPILLARY_GRAPH_URL.format(img_id),
-#         params={
-#             "fields": img_size,
-#             "access_token": self.token,
-#         },
-#     )
-
-#     if response.status_code != 200:
-#         logging.info(response.status_code)
-#         logging.info(response.reason)
-#         logging.info(f"image_id: {img_id}")
-#     else:
-#         data = response.json()
-#         if img_size in data:
-#             image_url = data[img_size]
-
-#             # image: save each image with ID as filename
-#             image_data = requests.get(image_url, stream=True).content
-#             with open(os.path.join(dest_folder, f"{img_id}.jpg"), "wb") as handler:
-#                 handler.write(image_data)
-#         else:
-#             logging.info(f"no image size {img_size} for image {img_id}")

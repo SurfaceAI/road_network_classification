@@ -1,25 +1,22 @@
 import os
 import sys
-from pathlib import Path
-import requests
-import pandas as pd
-import io
-from PIL import Image
 
-import torch
-from torch import nn, Tensor
-from torchvision import models, transforms
 # from torch.utils.data import Subset
 from functools import partial
+from pathlib import Path
 
+import pandas as pd
+import torch
+from torch import Tensor, nn
+from torchvision import models, transforms
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
 # import utils
+
 import constants as const
 
-from tqdm import tqdm
 
 class ModelInterface:
 
@@ -123,7 +120,7 @@ class ModelInterface:
         return img_data # TODO: only return img_data
     
     def load_model(self, model):
-        model_path = os.path.join(self.model_root, model)
+        model_path = Path(self.model_root) / model
         model_state = torch.load(model_path, map_location=self.device)
         model_cls = string_to_object(model_state['config']['model'])
         is_regression = model_state['config']["is_regression"]

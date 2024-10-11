@@ -1,11 +1,11 @@
-import os
-from pathlib import Path
-import subprocess
 import logging
+import os
+import subprocess
+from pathlib import Path
 
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extras import DictCursor
+from psycopg2.extras import DictCursor, execute_batch
 
 
 class SurfaceDatabase:
@@ -47,14 +47,12 @@ class SurfaceDatabase:
             executable="/bin/bash",
         )
         if res.returncode == 0:
-            logging.info(f"database already exists. Skip DB creation step.")
+            logging.info("database already exists. Skip DB creation step.")
         else:
             logging.info(
                 "setup database. Depending on the pbf_file size this might take a while"
             )
-            osmosis_scheme_file = os.path.join(
-                Path(os.path.dirname(__file__)).parent, "pgsnapshot_schema_0.6.sql"
-            )
+            osmosis_scheme_file = Path(os.path.dirname(__file__)).parent / "pgsnapshot_schema_0.6.sql"
             subprocess.run(f"createdb -h {self.dbhost} -U {self.dbhost} {self.dbname}", shell=True, executable="/bin/bash")
             subprocess.run(
                 f"psql  -d {self.dbname} -c 'CREATE EXTENSION postgis;'",
@@ -113,11 +111,15 @@ class SurfaceDatabase:
 
         conn.close()
 
-    def execute_many_sql_query(self, query, value_list):
+    def execute_many_sql_query(self, query, value_list, params={}, is_file=True):
         conn = self.create_dbconnection()
 
+        if is_file:
+            with open(query, "r") as file:
+                query = file.read()
+
         with conn.cursor(cursor_factory=DictCursor) as cursor:
-            cursor.executemany(query, value_list)
+            execute_batch(cursor, sql.SQL(query.format(**params)), value_list)
             conn.commit()
         conn.close()
 
@@ -129,7 +131,7 @@ class SurfaceDatabase:
         try:
             self.execute_sql_query(query, {"table_name": table_name}, is_file=False)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def table_to_shapefile(self, table_name, output_file):
@@ -162,4 +164,4 @@ class SurfaceDatabase:
         placeholders = ", ".join(["%s"] * len(header))
         flattened_rows = [tuple(row) for row in rows]
         query = f'INSERT INTO {table_name} ({columns}) VALUES ({placeholders});'
-        self.execute_many_sql_query(query, flattened_rows)
+        self.execute_many_sql_query(query, flattened_rows, is_file=False)

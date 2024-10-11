@@ -1,16 +1,13 @@
 import os
 import sys
 from pathlib import Path
+
 import pytest
-import mercantile
-from unittest.mock import MagicMock, call, mock_open
-import requests
 
 root_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(root_dir))
-from src.modules.MapillaryInterface import MapillaryInterface
 from src.modules.AreaOfInterest import AreaOfInterest
-import csv
+from src.modules.MapillaryInterface import MapillaryInterface
 
 
 @pytest.fixture
@@ -41,16 +38,6 @@ def aoi():
             road_type_pred_path="road_type_pred_path",
         )
     )
-
-
-def test_tiles_within_bbox(mapillary_interface):
-    minLon, minLat, maxLon, maxLat = 12.01, 50.01, 12.02, 50.015
-    tiles = mapillary_interface.tiles_within_bbox([minLon, minLat, maxLon, maxLat], 14)
-    assert tiles == [mercantile.Tile(8738, 5555, 14), mercantile.Tile(8739, 5555, 14)]
-
-
-def test_tiles_within_boundary(mapillary_interface):
-    pass
 
 
 
