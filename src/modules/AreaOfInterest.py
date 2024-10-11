@@ -4,6 +4,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import mercantile
+from PIL import Image
+import io
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -222,38 +224,38 @@ class AreaOfInterest:
         )
         road_type_pred.to_csv(self.query_params["road_type_pred_csv_path"], index=False)
 
-    def classify_images(self, mi, db):
+    def classify_images(self, mi, db, md):
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
 
         # TODO: querying img urls takes some time (approx. 22sec for 1000 imgs, depends on internet connection)
         # parallelize this step with img. classification (one batch url->img download->classification)
-        for i in tqdm(range(0, len(img_ids), batch_size), desc="Download and classify images"):
-            j = min(i+batch_size, len(img_ids))
+        for i in tqdm(range(0, len(img_ids), md.batch_size), desc="Download and classify images"):
+            j = min(i+md.batch_size, len(img_ids))
             img_urls = mi.query_img_urls(
                 img_ids[i:j],
                 self.img_size,
             )
             
-            img_data_raw = []
+            img_data = []
             for img_url in img_urls:
-                response = requests.get(img_url, stream=True)
-                if response.status_code == 200:
+                response = mi.query_mapillary(img_url)
+                if response != None:
                     img = Image.open(io.BytesIO(response.content))
-                    img_data_raw.append(img)
+                    img_data.append(img)
             
-            model_interface = Models.ModelInterface(self.config)
-            model_output = model_interface.batch_classifications(img_data_raw)
+            model_output = md.batch_classifications(img_data)
+            # TODO: merge model output and image ids
         
-        # TODO: bring directly into required format and add to db without writing csv
-        self.format_pred_files()
+        # # TODO: bring directly into required format and add to db without writing csv
+        # self.format_pred_files()
 
-        db.execute_sql_query(self.query_files["add_surface_pred_results"], 
-                             self.query_params
-                             )
-        db.execute_sql_query(
-            self.query_files["add_road_type_pred_results"], 
-            self.query_params
-        )
+        # db.execute_sql_query(self.query_files["add_surface_pred_results"], 
+        #                      self.query_params
+        #                      )
+        # db.execute_sql_query(
+        #     self.query_files["add_road_type_pred_results"], 
+        #     self.query_params
+        # )
 
     # for test purpose only
     def model_predict(self, img_data):

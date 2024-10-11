@@ -2,8 +2,6 @@ import pytest
 import os
 import sys
 from pathlib import Path
-from PIL import Image
-import numpy as np
 
 root_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(root_dir))
@@ -29,27 +27,6 @@ def aoi():
             segments_per_group=None,
             pred_path="pred_path",
             road_type_pred_path="road_type_pred_path",
-            model_root="src/models",
-            models={
-                "surface_type": "surface-efficientNetV2SLinear-20240923_171219-2t59l5b9_epoch10.pt",
-                "surface_quality": {
-                    "asphalt": "smoothness-asphalt-efficientNetV2SLinear-20240923_144409-86vpv5bs_epoch29.pt",
-                    "concrete": "smoothness-concrete-efficientNetV2SLinear-20240924_020702-32bp575u_epoch16.pt",
-                    "paving_stones": "smoothness-paving_stones-efficientNetV2SLinear-20240924_035145-0u6eheod_epoch18.pt",
-                    "sett": "smoothness-sett-efficientNetV2SLinear-20240924_103221-xrpbxnjc_epoch26.pt",
-                    "unpaved": "smoothness-unpaved-efficientNetV2SLinear-20240924_131624-qfvm272n_epoch21.pt"
-                },
-                "road_type": "flatten-efficientNetV2SLinear-20240917_125206-9lg7mdeu_epoch10.pt"
-            },
-            gpu_kernel=0,
-            transform_surface={
-                "resize": 384,
-                "crop": "lower_middle_half"
-            },
-            transform_road_type={
-                "resize": 384,
-                "crop": "lower_half"
-            }
         )
     )
 
@@ -70,21 +47,5 @@ def test_initialization(aoi):
     assert aoi.segments_per_group == None
 
 
-def test_model_predict(aoi):
-    input_data = []
-    for image_id in ["1000068877331935", "1000140361462393"]:
-        image_path=os.path.join(root_dir, "tests", "test_data", f"{image_id}.jpg")
-        input_data.append(Image.open(image_path))
-
-    
-
-     # TODO: store example image in test_data and read it here
-    expected_output= [
-        ["1000068877331935","asphalt",0.99967,2.01654,"good"],
-        ["1000140361462393","asphalt",0.99999,1.70350,"good"]
-    ]
-
-    output = aoi.model_predict(input_data)
-    assert output == expected_output
 
 

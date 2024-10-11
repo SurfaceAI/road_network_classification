@@ -9,10 +9,11 @@ from modules import (
     SurfaceDatabase as sd,
     MapillaryInterface as mi,
     AreaOfInterest as aoi,
+    Models as md,
 )
 
 
-def process_area_of_interest(db, aoi, mi):
+def process_area_of_interest(db, aoi, mi, md):
     logging.info(f"query img metadata and store in database {db.dbname}")
     aoi.get_and_write_img_metadata(mi, db)
 
@@ -28,7 +29,7 @@ def process_area_of_interest(db, aoi, mi):
     ##### classify images
     # TODO: include classification model into pipeline
     logging.info("classify images")
-    aoi.classify_images(mapillary_interface, surface_database)
+    aoi.classify_images(mapillary_interface, surface_database, model_interface)
 
     if aoi.query_files["roadtype_separation"] != None:
         logging.info(
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     )
 
     area_of_interest = aoi.AreaOfInterest(cg)
+    model_interface = md.ModelInterface(cg)
 
     # TODO: only append root_path if pbf_path is a relative path
     cg["pbf_path"] = os.path.join(root_path, cg["pbf_path"])
@@ -84,7 +86,7 @@ if __name__ == "__main__":
         cg["pbf_path"],
     )
 
-    process_area_of_interest(surface_database, area_of_interest, mapillary_interface)
+    process_area_of_interest(surface_database, area_of_interest, mapillary_interface, model_interface)
 
     os.makedirs(os.path.join(root_path, "data"), exist_ok=True)
     # write results to shapefile

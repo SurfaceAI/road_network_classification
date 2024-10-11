@@ -37,6 +37,7 @@ class ModelInterface:
         self.transform_road_type = transform 
         self.model_root = config.get('model_root')
         self.models = config.get('models')
+        self.batch_size = config.get('batch_size')
 
     @staticmethod
     def custom_crop(img, crop_style=None):
@@ -191,7 +192,7 @@ class ModelInterface:
                 sub_data = data[sub_indices]
                 pred_classes, pred_values = self.predict(model, sub_data, is_regression, classes)
 
-                group['quality'] = pred_classes # TODO: not relevant
+                # group['quality'] = pred_classes # TODO: not relevant
                 group['quality_value'] = pred_values
             final_results.append(group)
         final_df = pd.concat(final_results)
