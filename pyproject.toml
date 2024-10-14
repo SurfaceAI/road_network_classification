@@ -5,6 +5,7 @@ description = "SurfaceAI: pipeline to create road surface data from crowd-source
 authors = ["Alexandra Kapp <alexandra.kapp@posteo.de>", "Edith Hoffmann <edith.hoffmann@htw-berlin.de>"]
 license = "{file = \"LICENSE.txt\"}"
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -12,12 +13,13 @@ pandas = "^2.2.3"
 requests = "^2.32.3"
 mercantile = "^1.2.1"
 vt2geojson = "^0.2.1"
-psycopg2 = "^2.9.9"
 pillow = "^10.4.0"
 tqdm = "^4.66.5"
 torch = "2.2.2"
 torchvision = "0.17.2"
 numpy = "1.26.4"
+psycopg2 = "^2.9.9"
+psycopg2-binary = "^2.9.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
