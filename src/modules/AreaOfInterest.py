@@ -185,26 +185,24 @@ class AreaOfInterest:
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
         #img_ids = ["1000068877331935", "1000140361462393"]
 
+        db.execute_sql_query(const.SQL_MODEL_RESULT, {})
+
         for i in tqdm(range(0, len(img_ids), md.batch_size), desc="Download and classify images"):
             j = min(i+md.batch_size, len(img_ids))
 
-            #start = time.time()
+            start = time.time()
             img_data = mi.query_imgs(
                 img_ids[i:j],
                 self.img_size,
             )
-            #print(f"img download {time.time() - start}")
-            start = time.time()
             model_output = md.batch_classifications(img_data)
-            #print(f"img classification {time.time() - start}")
             
-            # TODO: current fix to turn pd to list of lists
-            model_output = model_output.values.tolist()
             # add img_id to model_output
-            value_list = [mo + [img_id] for img_id, mo in zip(img_ids[i:j], model_output)]
             #start = time.time()
-            db.execute_many_sql_query(const.SQL_ADD_MODEL_PRED, 
-                                      value_list, params={"name": self.name})
+            value_list = [[img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)]
+            header = ["img_id", "road_type_pred", "road_type_prob", "type_pred", "type_class_prob", "quality_pred"]
+            db.add_rows_to_table("temp_classification_updates", header, value_list)
             #print(f"db insert {time.time() - start}")
-            
+
+        db.execute_sql_query(const.SQL_POST_MODEL_RESULT, self.query_params)
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)
