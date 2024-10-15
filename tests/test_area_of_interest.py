@@ -1,7 +1,7 @@
-import pytest
 import os
 import sys
 from pathlib import Path
+import pytest
 
 root_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(root_dir))
@@ -45,7 +45,5 @@ def test_initialization(aoi):
     assert aoi.min_road_length == 10
     assert aoi.segment_length == 20
     assert aoi.segments_per_group == None
-
-
 
 

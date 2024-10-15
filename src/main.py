@@ -16,14 +16,14 @@ def process_area_of_interest(db, aoi, mi, md):
     logging.info(f"query img metadata and store in database {db.dbname}")
     aoi.get_and_write_img_metadata(mi, db)
 
-    logging.info("create linestrings in bounding box")
+    logging.info("create road segments in bounding box")
     # TODO: speed up?
     db.execute_sql_query(aoi.custom_query_files["way_selection"], aoi.query_params)
 
-    logging.info(f"cut lines into segments of length {aoi.segment_length}")
+    logging.info(f"cut lines into subsegments of length {aoi.segment_length}")
     db.execute_sql_query(const.SQL_SEGMENT_WAYS, aoi.query_params)
 
-    logging.info("match images to road segments")
+    logging.info("match images to subsegments")
     db.execute_sql_query(const.SQL_MATCH_IMG_ROADS, aoi.query_params)
 
     ##### classify images
@@ -100,3 +100,5 @@ if __name__ == "__main__":
     surface_database.table_to_shapefile(
         f"{area_of_interest.name}_group_predictions", output_file
     )
+
+    # surface_database.remove_aoi_tables(area_of_interest.name)

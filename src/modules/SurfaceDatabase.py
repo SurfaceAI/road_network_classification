@@ -169,3 +169,16 @@ class SurfaceDatabase:
         flattened_rows = [tuple(row) for row in rows]
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders});"
         self.execute_many_sql_query(query, flattened_rows, is_file=False)
+
+
+    def remove_aoi_tables(self, aoi_name):
+        self.execute_sql_query(
+                f"""DROP TABLE IF EXISTS {aoi_name}_eval_groups,
+                                         {aoi_name}_group_predictions, 
+                                         {aoi_name}_img_metadata,
+                                         {aoi_name}_img_selection,
+                                         {aoi_name}_partitions,
+                                         {aoi_name}_segmented_ways,
+                                         {aoi_name}_way_selection;
+                """
+            , {}, is_file=False)
