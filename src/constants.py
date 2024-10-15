@@ -1,5 +1,4 @@
 import os
-
 # sql file names
 from pathlib import Path
 

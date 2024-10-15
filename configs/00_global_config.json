@@ -1,12 +1,13 @@
 {
 
+    "pbf_path" : "data/germany-latest.osm.pbf",
+    
     "dbname": "database",
     "dbuser": "user",
     "dbhost": "host",
     "dbpassword": "password",
-    "pbf_path" : "data/germany-latest.osm.pbf",
     
-    "img_size": "thumb_2048_url",
+    "img_size": "thumb_1024_url",
     "parallel": true,
     "parallel_batch_size": 100,
 
@@ -16,12 +17,7 @@
     "min_road_length" : 10,
     "segments_per_group": null,
 
-    "custom_attrs": {},
-    "additional_id_column": null,
-    "custom_sql_way_selection": false,
-    "custom_road_type_join": false,
-
-    "model_root": "src/models",
+    "model_root": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/trained_models",
     "models": {
         "surface_type": "surface-efficientNetV2SLinear-20240923_171219-2t59l5b9_epoch10.pt",
         "surface_quality": {

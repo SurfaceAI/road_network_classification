@@ -1,14 +1,14 @@
 import concurrent.futures
+import io
 import logging
 import os
 import sys
-import io
 import time
 from itertools import repeat
 from pathlib import Path
-from PIL import Image
 
 import requests
+from PIL import Image
 from requests.exceptions import ConnectTimeout
 from tqdm import tqdm
 from vt2geojson.tools import vt_bytes_to_geojson

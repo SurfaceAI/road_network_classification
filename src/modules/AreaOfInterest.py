@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 from pathlib import Path
@@ -5,9 +6,7 @@ from pathlib import Path
 import mercantile
 import numpy as np
 import pandas as pd
-import mercantile
 from PIL import Image
-import io
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -51,7 +50,7 @@ class AreaOfInterest:
         self.config = config
 
         self.name = config.get("name")
-        self.run = config.get("run")
+        self.run = config.get("run", None)
         self.minLon = config.get("minLon")
         self.minLat = config.get("minLat")
         self.maxLon = config.get("maxLon")
@@ -71,7 +70,7 @@ class AreaOfInterest:
         # road network variables
         self.min_road_length = config.get("min_road_length")
         self.segment_length = config.get("segment_length")
-        self.segments_per_group = config.get("segments_per_group")
+        self.segments_per_group = config.get("segments_per_group", None)
 
         # customizations
         self.additional_id_column = (
@@ -100,11 +99,6 @@ class AreaOfInterest:
         # # i.e., all subsegments have group_num 1
         group_num = '0' if self.segments_per_group == None else f"segment_number / {self.segments_per_group}"
         
-        # TODO: remove
-        folder = src_dir / "data" / self.run
-        surface_pred_csv_path = folder / "classification_results.csv"
-        road_type_pred_csv_path = folder / "scenery_class_results.csv"
-
         return {
             "name": self.name,
             "bbox0": self.minLon,
@@ -113,8 +107,6 @@ class AreaOfInterest:
             "bbox3": self.maxLat,
             "crs": self.proj_crs,
             "dist_from_road": self.dist_from_road,
-            "surface_pred_csv_path": surface_pred_csv_path,
-            "road_type_pred_csv_path": road_type_pred_csv_path,
             "additional_id_column": additional_id_column,
             "additional_ways_id_column": additional_ways_id_column,
             "grouping_ids": grouping_ids,
