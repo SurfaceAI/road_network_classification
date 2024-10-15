@@ -14,7 +14,8 @@ Find the [paper](https://arxiv.org/abs/2409.18922) of this publication here.
 
 ### Prerequisites
 
-- To setup the database, requires prior installation of `postgresql`, `postgis`, `osmosis`.
+- To setup the database, requires prior installation of `postgresql`, `postgis`, `osmosis` (E.g., with `brew install` for MacOS and `apt install` for Linux)
+
 - Download of road network. If OSM is used, as `.pbf` file. Speficy pbf file location in `configs/00_global_config.json` (`pbf_path`).
 - Get the model weights from TODO and store them in the subfolder `models` or specify the respective folder location in `configs/00_global_config.json` (`model_root`).
 
@@ -83,7 +84,7 @@ Install required packages, as defined in `pyproject.toml`
 Start the pipeline by running:
 
 ```bash
-    python src/main.py  CONFIG_NAME
+    python src/main.py  -c CONFIG_NAME
 ```
 
 The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
