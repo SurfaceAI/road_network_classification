@@ -1,5 +1,6 @@
 import os
-import utils
+
+import other.utils as utils
 
 if __name__ == "__main__":
     input_folder = (

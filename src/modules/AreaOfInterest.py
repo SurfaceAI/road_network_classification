@@ -1,12 +1,9 @@
-import io
 import os
 import sys
 from pathlib import Path
 
 import mercantile
 import numpy as np
-import pandas as pd
-from PIL import Image
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -14,9 +11,6 @@ sys.path.append(str(src_dir))
 from tqdm import tqdm
 
 import constants as const
-import utils
-from modules import Models
-
 
 class AreaOfInterest:
     """The area of interest, defined by a bounding box, that the surface is classified for."""
@@ -154,35 +148,16 @@ class AreaOfInterest:
                 db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
         db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
 
-    def format_pred_files(self):
-        file_path = self.query_params["surface_pred_csv_path"]
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        file_path = self.query_params["road_type_pred_csv_path"]
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-        surface_pred = utils.format_predictions(
-            pd.read_csv(self.pred_path, dtype={"Image": str, "Level_1": str}),
-            is_pano=self.use_pano,
-        )
-        surface_pred.to_csv(self.query_params["surface_pred_csv_path"], index=False)
-
-        road_type_pred = utils.format_scenery_predictions(
-            pd.read_csv(self.road_type_pred_path, dtype={"Image": str}),
-            is_pano=self.use_pano,
-        )
-        road_type_pred.to_csv(self.query_params["road_type_pred_csv_path"], index=False)
 
     def classify_images(self, mi, db, md):
         import time
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
-        #img_ids = ["1000068877331935", "1000140361462393"]
 
         db.execute_sql_query(const.SQL_MODEL_RESULT, {})
 
         for i in tqdm(range(0, len(img_ids), md.batch_size), desc="Download and classify images"):
             j = min(i+md.batch_size, len(img_ids))
 
-            start = time.time()
             img_data = mi.query_imgs(
                 img_ids[i:j],
                 self.img_size,

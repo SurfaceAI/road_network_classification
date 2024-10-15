@@ -4,7 +4,6 @@ import sys
 from functools import partial
 from pathlib import Path
 
-import pandas as pd
 import torch
 from torch import Tensor, nn
 from torchvision import models, transforms
@@ -12,7 +11,6 @@ from torchvision import models, transforms
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
-# import utils
 
 import constants as const
 

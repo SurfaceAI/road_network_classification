@@ -5,40 +5,29 @@ import os
 import sys
 from pathlib import Path
 
-from modules import (
-    AreaOfInterest as aoi,
-)
-from modules import (
-    MapillaryInterface as mi,
-)
-
 ## local modules
-from modules import (
-    SurfaceDatabase as sd,
-    MapillaryInterface as mi,
-    AreaOfInterest as aoi,
-    Models as md,
-)
-
 import constants as const
+from modules import AreaOfInterest as aoi
+from modules import MapillaryInterface as mi
+from modules import Models as md
+from modules import SurfaceDatabase as sd
 
 
 def process_area_of_interest(db, aoi, mi, md):
     logging.info(f"query img metadata and store in database {db.dbname}")
-    # aoi.get_and_write_img_metadata(mi, db)
+    aoi.get_and_write_img_metadata(mi, db)
 
-    # logging.info("create linestrings in bounding box")
-    # # TODO: speed up?
-    # db.execute_sql_query(aoi.custom_query_files["way_selection"], aoi.query_params)
+    logging.info("create linestrings in bounding box")
+    # TODO: speed up?
+    db.execute_sql_query(aoi.custom_query_files["way_selection"], aoi.query_params)
 
-    # logging.info(f"cut lines into segments of length {aoi.segment_length}")
-    # db.execute_sql_query(const.SQL_SEGMENT_WAYS, aoi.query_params)
+    logging.info(f"cut lines into segments of length {aoi.segment_length}")
+    db.execute_sql_query(const.SQL_SEGMENT_WAYS, aoi.query_params)
 
-    # logging.info("match images to road segments")
-    # db.execute_sql_query(const.SQL_MATCH_IMG_ROADS, aoi.query_params)
+    logging.info("match images to road segments")
+    db.execute_sql_query(const.SQL_MATCH_IMG_ROADS, aoi.query_params)
 
     ##### classify images
-    # TODO: include classification model into pipeline
     logging.info("classify images")
     aoi.classify_images(mapillary_interface, surface_database, model_interface)
 
@@ -67,7 +56,7 @@ if __name__ == "__main__":
 
     root_path = Path(os.path.abspath(__file__)).parent.parent
     global_config_path = root_path / "configs"/ "00_global_config.json"
-    credentials_path = root_path / "configs" / "01_credentials.json"
+    credentials_path = root_path / "configs" / "02_credentials.json"
     if args.configfile:
         config_path = root_path / "configs" / f"{args.configfile}.json"
     else:
@@ -105,7 +94,8 @@ if __name__ == "__main__":
 
     os.makedirs(root_path / "data", exist_ok=True)
     # write results to shapefile
-    output_file = root_path / "data" / f"{area_of_interest.name}_{area_of_interest.run}_pred.shp"
+    run = f"_{area_of_interest.run}" if area_of_interest.run else ""
+    output_file = root_path / "data" / f"{area_of_interest.name}{run}_surfaceai.shp"
     surface_database.table_to_shapefile(
         f"{area_of_interest.name}_group_predictions", output_file
     )

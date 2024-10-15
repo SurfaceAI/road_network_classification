@@ -1,4 +1,4 @@
-import utils
+import other.utils as utils
 
 if __name__ == "__main__":
     # Input equirectangular image
