@@ -52,10 +52,10 @@ class SurfaceDatabase:
                 "setup database. Depending on the pbf_file size this might take a while"
             )
             osmosis_scheme_file = (
-                Path(os.path.dirname(__file__)).parent / "pgsnapshot_schema_0.6.sql"
+                Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
             )
             subprocess.run(
-                f"createdb -h {self.dbhost} -U {self.dbhost} {self.dbname}",
+                f"createdb -h {self.dbhost} {self.dbname} -U {self.dbuser}",
                 shell=True,
                 executable="/bin/bash",
             )
@@ -75,7 +75,7 @@ class SurfaceDatabase:
                 executable="/bin/bash",
             )
             subprocess.run(
-                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname}""",
+                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser} password={self.dbpassword}""",
                 shell=True,
                 executable="/bin/bash",
             )
