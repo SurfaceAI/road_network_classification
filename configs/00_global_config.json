@@ -17,7 +17,7 @@
     "min_road_length" : 10,
     "segments_per_group": null,
 
-    "model_root": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/trained_models",
+    "model_root": "models/",
     "models": {
         "surface_type": "surface-efficientNetV2SLinear-20240923_171219-2t59l5b9_epoch10.pt",
         "surface_quality": {
