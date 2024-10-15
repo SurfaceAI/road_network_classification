@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 import constants as const
 
+
 class AreaOfInterest:
     """The area of interest, defined by a bounding box, that the surface is classified for."""
 
@@ -75,24 +76,31 @@ class AreaOfInterest:
         self.custom_sql_way_selection = config.get("custom_sql_way_selection", False)
         self.custom_road_type_join = config.get("custom_road_type_join", False)
         self.custom_attrs = config.get("custom_attrs", {})
-        self.custom_road_type_separation = config.get("custom_road_type_separation",False)
+        self.custom_road_type_separation = config.get(
+            "custom_road_type_separation", False
+        )
 
         self.query_params = self._get_query_params()
         self.custom_query_files = self._get_custom_query_files()
 
-
     def _get_query_params(self):
         additional_id_column = (
-            f"{self.additional_id_column}," if self.additional_id_column is not None else ""
+            f"{self.additional_id_column},"
+            if self.additional_id_column is not None
+            else ""
         )  # add comma
         grouping_ids = f"{additional_id_column}id,part_id,group_num"
         additional_ways_id_column = (
             f"ways.{additional_id_column}" if additional_id_column != "" else ""
         )
-        # if segments_per_group is None, then the eval groups are the entire length of the road segment, 
+        # if segments_per_group is None, then the eval groups are the entire length of the road segment,
         # # i.e., all subsegments have group_num 1
-        group_num = '0' if self.segments_per_group == None else f"segment_number / {self.segments_per_group}"
-        
+        group_num = (
+            "0"
+            if self.segments_per_group == None
+            else f"segment_number / {self.segments_per_group}"
+        )
+
         return {
             "name": self.name,
             "bbox0": self.minLon,
@@ -113,22 +121,26 @@ class AreaOfInterest:
     def _get_custom_query_files(self):
         return {
             "way_selection": (
-            const.SQL_WAY_SELECTION
-            if not self.custom_sql_way_selection
-            else self.custom_sql_way_selection
-        ),
+                const.SQL_WAY_SELECTION
+                if not self.custom_sql_way_selection
+                else self.custom_sql_way_selection
+            ),
             "roadtype_separation": (
-            const.SQL_ASSIGN_ROAD_TYPES
-            if not self.custom_road_type_separation
-            else self.custom_road_type_separation
-        )
+                const.SQL_ASSIGN_ROAD_TYPES
+                if not self.custom_road_type_separation
+                else self.custom_road_type_separation
+            ),
         }
 
-    def get_and_write_img_metadata(self, mi, db): 
+    def get_and_write_img_metadata(self, mi, db):
         # get all relevant tile ids
         db.execute_sql_query(const.SQL_CREATE_IMG_METADATA_TABLE, self.query_params)
 
-        tiles = list(mercantile.tiles(self.minLon, self.minLat, self.maxLon, self.maxLat,  const.ZOOM))
+        tiles = list(
+            mercantile.tiles(
+                self.minLon, self.minLat, self.maxLon, self.maxLat, const.ZOOM
+            )
+        )
 
         for i in tqdm(range(0, len(tiles))):
             tile = tiles[i]
@@ -136,40 +148,53 @@ class AreaOfInterest:
             rows = np.array(output)
             if len(rows) == 0:
                 continue
-            rows = rows[(rows[:, header.index("lon")].astype(float) >= self.minLon) &
-                       (rows[:, header.index("lon")].astype(float) <= self.maxLon) &
-                       (rows[:, header.index("lat")].astype(float) >= self.minLat) &
-                       (rows[:, header.index("lat")].astype(float) <= self.maxLat)]
+            rows = rows[
+                (rows[:, header.index("lon")].astype(float) >= self.minLon)
+                & (rows[:, header.index("lon")].astype(float) <= self.maxLon)
+                & (rows[:, header.index("lat")].astype(float) >= self.minLat)
+                & (rows[:, header.index("lat")].astype(float) <= self.maxLat)
+            ]
             if not self.use_pano and len(rows) > 0:
-                rows = rows[rows[:, header.index("is_pano")] == 'False']
+                rows = rows[rows[:, header.index("is_pano")] == "False"]
             if self.userid and len(rows) > 0:
                 rows = rows[rows[:, header.index("creator_id")] == self.userid]
             if len(rows) > 0:
                 db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
         db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
 
-
     def classify_images(self, mi, db, md):
         import time
+
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
 
         db.execute_sql_query(const.SQL_MODEL_RESULT, {})
 
-        for i in tqdm(range(0, len(img_ids), md.batch_size), desc="Download and classify images"):
-            j = min(i+md.batch_size, len(img_ids))
+        for i in tqdm(
+            range(0, len(img_ids), md.batch_size), desc="Download and classify images"
+        ):
+            j = min(i + md.batch_size, len(img_ids))
 
             img_data = mi.query_imgs(
                 img_ids[i:j],
                 self.img_size,
             )
             model_output = md.batch_classifications(img_data)
-            
+
             # add img_id to model_output
-            #start = time.time()
-            value_list = [[img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)]
-            header = ["img_id", "road_type_pred", "road_type_prob", "type_pred", "type_class_prob", "quality_pred"]
+            # start = time.time()
+            value_list = [
+                [img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)
+            ]
+            header = [
+                "img_id",
+                "road_type_pred",
+                "road_type_prob",
+                "type_pred",
+                "type_class_prob",
+                "quality_pred",
+            ]
             db.add_rows_to_table("temp_classification_updates", header, value_list)
-            #print(f"db insert {time.time() - start}")
+            # print(f"db insert {time.time() - start}")
 
         db.execute_sql_query(const.SQL_POST_MODEL_RESULT, self.query_params)
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)

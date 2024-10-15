@@ -36,7 +36,6 @@ class SurfaceDatabase:
     def __repr__(self):
         return f"Database(name={self.dbname}, tables={self.get_table_names()}, input_road_network={self.pbf_path})"
 
-
     def setup_database(self, pbf_path, alt_road_network=None):
         """
         Setup the database with the provided pbf file
@@ -52,8 +51,14 @@ class SurfaceDatabase:
             logging.info(
                 "setup database. Depending on the pbf_file size this might take a while"
             )
-            osmosis_scheme_file = Path(os.path.dirname(__file__)).parent / "pgsnapshot_schema_0.6.sql"
-            subprocess.run(f"createdb -h {self.dbhost} -U {self.dbhost} {self.dbname}", shell=True, executable="/bin/bash")
+            osmosis_scheme_file = (
+                Path(os.path.dirname(__file__)).parent / "pgsnapshot_schema_0.6.sql"
+            )
+            subprocess.run(
+                f"createdb -h {self.dbhost} -U {self.dbhost} {self.dbname}",
+                shell=True,
+                executable="/bin/bash",
+            )
             subprocess.run(
                 f"psql  -d {self.dbname} -c 'CREATE EXTENSION postgis;'",
                 shell=True,
@@ -123,7 +128,6 @@ class SurfaceDatabase:
             conn.commit()
         conn.close()
 
-
     # TODO: fix function
     def table_exists(self, table_name):
         query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = {table_name});"
@@ -163,5 +167,5 @@ class SurfaceDatabase:
         columns = ", ".join(header)
         placeholders = ", ".join(["%s"] * len(header))
         flattened_rows = [tuple(row) for row in rows]
-        query = f'INSERT INTO {table_name} ({columns}) VALUES ({placeholders});'
+        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders});"
         self.execute_many_sql_query(query, flattened_rows, is_file=False)

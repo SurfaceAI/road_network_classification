@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 
 ## local modules
@@ -32,10 +31,10 @@ def process_area_of_interest(db, aoi, mi, md):
     aoi.classify_images(mapillary_interface, surface_database, model_interface)
 
     if aoi.custom_query_files["roadtype_separation"] is not None:
-        logging.info(
-            "create partitions for each road type of a road segment"
+        logging.info("create partitions for each road type of a road segment")
+        db.execute_sql_query(
+            aoi.custom_query_files["roadtype_separation"], aoi.query_params
         )
-        db.execute_sql_query(aoi.custom_query_files["roadtype_separation"], aoi.query_params)
     else:
         logging.info("no road type separation needed")
 
@@ -51,11 +50,11 @@ if __name__ == "__main__":
 
     # load config
     parser = argparse.ArgumentParser(prog="surfaceAI")
-    parser.add_argument('-c', '--configfile')
+    parser.add_argument("-c", "--configfile")
     args = parser.parse_args()
 
     root_path = Path(os.path.abspath(__file__)).parent.parent
-    global_config_path = root_path / "configs"/ "00_global_config.json"
+    global_config_path = root_path / "configs" / "00_global_config.json"
     credentials_path = root_path / "configs" / "02_credentials.json"
     if args.configfile:
         config_path = root_path / "configs" / f"{args.configfile}.json"
@@ -90,7 +89,9 @@ if __name__ == "__main__":
         cg.get("pbf_path"),
     )
 
-    process_area_of_interest(surface_database, area_of_interest, mapillary_interface, model_interface)
+    process_area_of_interest(
+        surface_database, area_of_interest, mapillary_interface, model_interface
+    )
 
     os.makedirs(root_path / "data", exist_ok=True)
     # write results to shapefile

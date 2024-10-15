@@ -1,5 +1,6 @@
 import os
 import sys
+
 # from torch.utils.data import Subset
 from functools import partial
 from pathlib import Path
@@ -16,7 +17,6 @@ import constants as const
 
 
 class ModelInterface:
-
     def __init__(self, config):
         # TODO: doc string
         self.device = torch.device(
@@ -24,15 +24,15 @@ class ModelInterface:
         )
         normalization = (const.NORM_MEAN, const.NORM_SD)
         # TODO: config is changed by transform['normalize'] = normalization
-        transform = config.get('transform_surface')
-        transform['normalize'] = normalization
+        transform = config.get("transform_surface")
+        transform["normalize"] = normalization
         self.transform_surface = transform
-        transform = config.get('transform_road_type')
-        transform['normalize'] = normalization
-        self.transform_road_type = transform 
-        self.model_root = config.get('model_root')
-        self.models = config.get('models')
-        self.batch_size = config.get('batch_size')
+        transform = config.get("transform_road_type")
+        transform["normalize"] = normalization
+        self.transform_road_type = transform
+        self.model_root = config.get("model_root")
+        self.models = config.get("models")
+        self.batch_size = config.get("batch_size")
 
     @staticmethod
     def custom_crop(img, crop_style=None):
@@ -58,7 +58,6 @@ class ModelInterface:
         cropped_img = transforms.functional.crop(img, top, left, height, width)
         return cropped_img
 
-
     def transform(
         self,
         resize=None,
@@ -81,7 +80,9 @@ class ModelInterface:
         transform_list = []
 
         if crop is not None:
-            transform_list.append(transforms.Lambda(partial(self.custom_crop, crop_style=crop)))
+            transform_list.append(
+                transforms.Lambda(partial(self.custom_crop, crop_style=crop))
+            )
 
         if resize is not None:
             if isinstance(resize, int):
@@ -99,15 +100,15 @@ class ModelInterface:
 
     def preprocessing(self, img_data_raw, transform):
         transform = self.transform(**transform)
-        img_data = torch.stack([transform(img) for img in  img_data_raw])
+        img_data = torch.stack([transform(img) for img in img_data_raw])
         return img_data
-    
+
     def load_model(self, model):
         model_path = Path(self.model_root) / model
         model_state = torch.load(model_path, map_location=self.device)
-        model_cls = model_mapping[model_state['config']['model']]
-        is_regression = model_state['config']["is_regression"]
-        valid_dataset = model_state['dataset']
+        model_cls = model_mapping[model_state["config"]["model"]]
+        is_regression = model_state["config"]["is_regression"]
+        valid_dataset = model_state["dataset"]
 
         if is_regression:
             class_to_idx = valid_dataset.get("class_to_idx")
@@ -117,7 +118,7 @@ class ModelInterface:
             classes = valid_dataset.get("classes")
             num_classes = len(classes)
         model = model_cls(num_classes)
-        model.load_state_dict(model_state['model_state_dict'])
+        model.load_state_dict(model_state["model_state_dict"])
 
         return model, classes, is_regression
 
@@ -128,37 +129,49 @@ class ModelInterface:
         image_batch = data.to(self.device)
 
         with torch.no_grad():
-            
+
             batch_outputs = model(image_batch)
             if is_regression:
                 batch_outputs = batch_outputs.flatten()
-                batch_classes = ["outside" if str(pred.item()) not in classes.keys() else classes[str(pred.item())] for pred in batch_outputs.round().int()]
+                batch_classes = [
+                    "outside"
+                    if str(pred.item()) not in classes.keys()
+                    else classes[str(pred.item())]
+                    for pred in batch_outputs.round().int()
+                ]
                 batch_values = [pred.item() for pred in batch_outputs]
             else:
                 batch_outputs = model.get_class_probabilies(batch_outputs)
-                batch_classes = [classes[idx.item()] for idx in torch.argmax(batch_outputs, dim=1)]
+                batch_classes = [
+                    classes[idx.item()] for idx in torch.argmax(batch_outputs, dim=1)
+                ]
                 batch_values = [pred.item() for pred in batch_outputs.max(dim=1).values]
 
-
-        return batch_classes, batch_values      
-
+        return batch_classes, batch_values
 
     def batch_classifications(self, img_data_raw):
         # road type
-        model, classes, is_regression = self.load_model(model=self.models.get('road_type'))
+        model, classes, is_regression = self.load_model(
+            model=self.models.get("road_type")
+        )
         data = self.preprocessing(img_data_raw, self.transform_road_type)
-        road_pred_classes, road_pred_values = self.predict(model, data, is_regression, classes)
+        road_pred_classes, road_pred_values = self.predict(
+            model, data, is_regression, classes
+        )
         road_pred_values = [round(value, 5) for value in road_pred_values]
 
         # surface type
-        model, classes, is_regression = self.load_model(model=self.models.get('surface_type'))
+        model, classes, is_regression = self.load_model(
+            model=self.models.get("surface_type")
+        )
         data = self.preprocessing(img_data_raw, self.transform_surface)
-        surface_pred_classes, surface_pred_values = self.predict(model, data, is_regression, classes)
+        surface_pred_classes, surface_pred_values = self.predict(
+            model, data, is_regression, classes
+        )
         surface_pred_values = [round(value, 5) for value in surface_pred_values]
 
-
         # surface quality
-        sub_models = self.models.get('surface_quality')
+        sub_models = self.models.get("surface_quality")
 
         surface_indices = {}
         for i, surface_type in enumerate(surface_pred_classes):
@@ -187,8 +200,10 @@ class ModelInterface:
             surface_prob = surface_pred_values[i]
             quality_value = quality_pred_values[i]
 
-            final_results.append([road, road_prob, surface, surface_prob, quality_value])
-        
+            final_results.append(
+                [road, road_prob, surface, surface_prob, quality_value]
+            )
+
         return final_results
 
 
@@ -196,12 +211,12 @@ class CustomEfficientNetV2SLinear(nn.Module):
     def __init__(self, num_classes, avg_pool=1):
         super(CustomEfficientNetV2SLinear, self).__init__()
 
-        model = models.efficientnet_v2_s(weights='IMAGENET1K_V1')
+        model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
         # adapt output layer
         in_features = model.classifier[-1].in_features * (avg_pool * avg_pool)
         fc = nn.Linear(in_features, num_classes, bias=True)
         model.classifier[-1] = fc
-        
+
         self.features = model.features
         self.avgpool = nn.AdaptiveAvgPool2d(avg_pool)
         self.classifier = model.classifier
@@ -209,8 +224,8 @@ class CustomEfficientNetV2SLinear(nn.Module):
             self.criterion = nn.MSELoss
         else:
             self.criterion = nn.CrossEntropyLoss
-        
-    @ staticmethod
+
+    @staticmethod
     def get_class_probabilies(x):
         return nn.functional.softmax(x, dim=1)
 
@@ -223,9 +238,10 @@ class CustomEfficientNetV2SLinear(nn.Module):
         x = self.classifier(x)
 
         return x
-    
+
     def get_optimizer_layers(self):
         return self.classifier
+
 
 model_mapping = {
     const.EFFNET_LINEAR: CustomEfficientNetV2SLinear,
