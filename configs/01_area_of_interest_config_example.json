@@ -6,8 +6,6 @@
     "maxLon": 13.828583,
     "maxLat": 51.094676,
     
-    "custom_attrs": {},
     "additional_id_column": null,
-    "custom_sql_way_selection": false,
-    "custom_road_type_join": false
+    "custom_sql_way_selection": false
 }

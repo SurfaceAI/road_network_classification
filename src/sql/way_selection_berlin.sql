@@ -2,9 +2,9 @@
 drop table if exists {name}_way_selection;
 
 CREATE TABLE {name}_way_selection AS
-SELECT * FROM {edge_table_name} WHERE ST_Within(
+SELECT * FROM berlin_priorisierungskonzept WHERE ST_Within(
         geom,
-        st_transform(ST_MakeEnvelope({bbox0}, {bbox1}, {bbox2}, {bbox3}, 4326), 25833)
+        st_transform(ST_MakeEnvelope({bbox0}, {bbox1}, {bbox2}, {bbox3}, 4326), {crs})
     ); 
 
 -- add maß_seite

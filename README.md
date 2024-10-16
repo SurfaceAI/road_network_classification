@@ -35,7 +35,7 @@ The configuration files are constructed to provide one global configuration file
 
 
 - Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the region of interest in `configs/your_config.json` file and provide a `name`
-- If you want to use a different road network than OSM, add a table with LINESTRINGs to your PostGIS database, within your config, set the parameter `pbf_path=None` and adjust the parameter `"custom_attrs":{"edge_table_name": "SQL_TABLE_NAME"},`
+- If you want to use a different road network than OSM, add a table with LINESTRINGs to your PostGIS database as table {name}_way_selection, within your config, set the parameter `pbf_path=None`.
 
 - In `00_global_config.json` a set of global config parameters that are all set to defaults do not require change (but may be adjusted)
 They consist of the following: 

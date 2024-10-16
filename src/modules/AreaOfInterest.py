@@ -4,6 +4,7 @@ from pathlib import Path
 
 import mercantile
 import numpy as np
+import logging
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -36,9 +37,6 @@ class AreaOfInterest:
                 - segments_per_group (int, optional): Number of segments per group.
                 - additional_id_column (str, optional): Additional column to use as an ID for custom road networks. Defaults to None.
                 - custom_sql_way_selection (bool, optional): Custom SQL query for way selection. Defaults to False.
-                - custom_road_type_join (bool, optional): Custom SQL query for road type join. Defaults to False.
-                - custom_attrs (dict, optional): Custom attributes for road network. Defaults to {}.
-                - custom_road_type_separation (bool, optional): Custom road type separation SQL script. Defaults to False.
         """
 
         # TODO: verify config inputs
@@ -73,15 +71,13 @@ class AreaOfInterest:
             if "additional_id_column" not in config.keys()
             else config.get("additional_id_column")
         )
-        self.custom_sql_way_selection = config.get("custom_sql_way_selection", False)
-        self.custom_road_type_join = config.get("custom_road_type_join", False)
-        self.custom_attrs = config.get("custom_attrs", {})
-        self.custom_road_type_separation = config.get(
-            "custom_road_type_separation", False
-        )
+        self.sql_way_selection = (
+                const.SQL_WAY_SELECTION
+                if not config.get("custom_sql_way_selection", False)
+                else config.get("custom_sql_way_selection", False)
+            )
 
         self.query_params = self._get_query_params()
-        self.custom_query_files = self._get_custom_query_files()
 
     def _get_query_params(self):
         additional_id_column = (
@@ -118,19 +114,6 @@ class AreaOfInterest:
             "min_road_length": self.min_road_length,
         }
 
-    def _get_custom_query_files(self):
-        return {
-            "way_selection": (
-                const.SQL_WAY_SELECTION
-                if not self.custom_sql_way_selection
-                else self.custom_sql_way_selection
-            ),
-            "roadtype_separation": (
-                const.SQL_ASSIGN_ROAD_TYPES
-                if not self.custom_road_type_separation
-                else self.custom_road_type_separation
-            ),
-        }
 
     def get_and_write_img_metadata(self, mi, db):
         # get all relevant tile ids
@@ -167,7 +150,7 @@ class AreaOfInterest:
 
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
 
-        db.execute_sql_query(const.SQL_MODEL_RESULT, {})
+        db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, {})
 
         for i in tqdm(
             range(0, len(img_ids), md.batch_size), desc="Download and classify images"
