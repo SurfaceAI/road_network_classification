@@ -181,6 +181,5 @@ class AreaOfInterest:
             ]
             db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
             # print(f"db insert {time.time() - start}")
-            break
 
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)
