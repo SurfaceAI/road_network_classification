@@ -1,4 +1,4 @@
-UPDATE {name}_img_classified
+UPDATE {name}_img_classifications
 set road_type_pred =
 CASE
     WHEN road_type_pred LIKE '1_1_road%' THEN 'road'

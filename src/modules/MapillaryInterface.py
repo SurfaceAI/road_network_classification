@@ -63,7 +63,7 @@ class MapillaryInterface:
                 )
                 time.sleep(wait_time)
             except requests.exceptions.RequestException as e:
-                print(f"Request failed: {e}")
+                logging.warning(f"Request failed: {e}")
                 return None
         return None
 
@@ -77,7 +77,6 @@ class MapillaryInterface:
         """
         header = [
             "img_id",
-            "tile_id",
             "sequence_id",
             "captured_at",
             "compass_angle",
@@ -86,7 +85,6 @@ class MapillaryInterface:
             "lon",
             "lat",
         ]
-        tile_id = str(int(tile.x)) + "_" + str(int(tile.y)) + "_" + str(int(tile.z))
 
         output = list()
         response = self.query_mapillary(
@@ -107,7 +105,6 @@ class MapillaryInterface:
                 output.append(
                     [
                         feature["properties"]["id"],
-                        tile_id,
                         feature["properties"]["sequence_id"],
                         feature["properties"]["captured_at"],
                         feature["properties"]["compass_angle"],

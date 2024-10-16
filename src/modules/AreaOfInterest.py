@@ -146,11 +146,14 @@ class AreaOfInterest:
         db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
 
     def classify_images(self, mi, db, md):
-        import time
-
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
+        if (db.table_exists(f"{self.name}_img_classifications")):
+            existing_img_ids = db.img_ids_from_dbtable(f"{self.name}_img_classifications")
+            logging.info(f"existing classified images: {len(existing_img_ids)}")
+            img_ids = list(set(img_ids) - set(existing_img_ids))
+            logging.info(f"remaining new images to classify: {len(img_ids)}")
 
-        db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, {})
+        db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
         for i in tqdm(
             range(0, len(img_ids), md.batch_size), desc="Download and classify images"
@@ -176,8 +179,8 @@ class AreaOfInterest:
                 "type_class_prob",
                 "quality_pred",
             ]
-            db.add_rows_to_table("temp_classification_updates", header, value_list)
+            db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
             # print(f"db insert {time.time() - start}")
+            break
 
-        db.execute_sql_query(const.SQL_POST_MODEL_RESULT, self.query_params)
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)

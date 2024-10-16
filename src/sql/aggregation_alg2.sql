@@ -1,6 +1,7 @@
 ALTER TABLE {name}_img_metadata ADD column if not exists group_num INT;
 
-create index if not exists segment_idx on {name}_img_metadata (segment_id);
+drop index if exists {name}_img_metadata_segment_idx;
+create index {name}_img_metadata_segment_idx on {name}_img_metadata (segment_id);
 create index if not exists {name}_segmented_ways_ids_idx on {name}_segmented_ways(segment_id);
 
 -- join based on segment - not partition! (we want to seperate road types later)
@@ -17,7 +18,8 @@ CREATE TEMP TABLE Partitions as (
     GROUP BY segment_id
 );
 create index if not exists {name}_partitions_segment_id_idx on Partitions (segment_id);
-create index if not exists {name}_img_metadata_id_idx on {name}_img_metadata (segment_id);
+drop index if exists {name}_img_metadata_id_idx;
+create index {name}_img_metadata_id_idx on {name}_img_metadata (segment_id);
 
 UPDATE {name}_img_metadata 
 SET requ_road_type = CASE
@@ -31,15 +33,26 @@ drop table Partitions;
 
 -- only keep relevant imgs
 drop table if exists {name}_img_selection;
-create table {name}_img_selection AS(
-	select img.*,
-	p.part_id
-	from {name}_img_metadata img
-	join {name}_partitions p
-	on img.segment_id = p.segment_id
-	where (img.requ_road_type is false or 
-		   img.road_type_pred=p.road_type) and img.road_type_pred != 'other'
-);
+
+WITH ImgMetadataClassification AS (
+    SELECT img.*,
+        res.road_type_pred,
+        res.road_type_prob,
+        res.type_pred,
+        res.type_class_prob,
+        res.quality_pred
+    FROM {name}_img_metadata img
+    INNER JOIN {name}_img_classifications res
+    ON img.img_id = res.img_id
+)
+	SELECT img.*,
+	    p.part_id
+    INTO TABLE {name}_img_selection
+	FROM ImgMetadataClassification img
+	JOIN {name}_partitions p
+	ON img.segment_id = p.segment_id
+	WHERE (img.requ_road_type is false or 
+		   img.road_type_pred=p.road_type) and img.road_type_pred != 'other';
 
 -- TODO: when image is assigned to two partitions only keep the one thats closer
 WITH RankedImages AS (
@@ -141,6 +154,7 @@ TopRankedVotes AS (
         GroupSurfaceVotes GV
 )
     SELECT
+        {additional_id_column}
         GRV.*,
 		ways.road_type,
         ways.geometry

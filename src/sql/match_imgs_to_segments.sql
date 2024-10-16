@@ -1,7 +1,6 @@
 CREATE TEMP TABLE temp_transformed AS
 SELECT
   img_id,
-  tile_id,
   sequence_id,
   captured_at,
   st_transform(geom, {crs}) AS geom
@@ -17,13 +16,11 @@ CREATE TABLE temp_table AS (
   FROM (
     SELECT
       img_id,
-      p.tile_id,
       p.sequence_id,
       p.captured_at,
       seg.way_id,
       seg.segment_id,
       p.geom,
-      to_timestamp(p.captured_at / 1000) as captured_at_timestamp,
       ST_Distance(seg.geom, p.geom) AS dist
     FROM
       temp_transformed AS p
