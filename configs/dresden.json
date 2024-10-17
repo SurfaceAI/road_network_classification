@@ -1,6 +1,5 @@
 {
     "name": "dresden",
-    "run": "run1",
     "minLon": 13.654175,
     "minLat": 51.00662,
     "maxLon": 13.828583,

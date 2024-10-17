@@ -1,9 +1,0 @@
-{
-    "name": "weser_aue",
-    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/weseraue/prediction/effnet_surface_quality_prediction-weseraue_imgs_2048-20240617_180008.csv",
-    "run": "run12",
-    "minLon":8.92273,
-    "minLat":52.5566,
-    "maxLon":9.23894,
-    "maxLat":52.7519
-}
