@@ -1,47 +1,115 @@
 # SurfaceAI: pipeline for surface type and quality classification of road networks
 
-This repository provides the code for the SurfaceAI pipeline. 
+This repository provides the code for the SurfaceAI pipeline.
 
-! THIS CODE IS STILL UNDER DEVELOPMENT! 
+For a specified bounding box, a Shapfile is generated that contains the surface type and quality classifications on a road network. Therefore, images from Mapillary are downloaded, classified using CNN models and aggregated on a provided (OpenStreetMap) road network.
 
-*Currently, the classification models are not yet integrated and a csv file path `pred_path` to surface type and quality image classification model results is expected in the config file, as well as a `road_scenery_pred_path` to the road scene classification model results.*
 
-Find the [paper](TODO) of this publication here.
+![Schematic illustration of model pipeline](img/model_pipeline.png)
+
+
+Find the [paper](https://arxiv.org/abs/2409.18922) of this publication here.
 
 ## Getting started
 
 ### Prerequisites
 
-- To setup the database, requires prior installation of `postgresql`, `postgis`, `osmosis`.
-- Download of road network. If OSM is used, as `.pbf` file. Speficy pbf file location in `config.py`.
+-  A Postgis database is used for faster geocomputations. This requires prior installation of `postgresql`, `postgis`, `osmosis` (E.g., with `brew install` for MacOS and `apt install` for Linux)
+
+- Create a `02_credentials.json` file according to `02_credentials_example.json`.
+You need to provide a database user name and password with which you may access your Posgres databases (this may need to be configured on your server). You need to ensure that your database user has `superuser`rights to create extensions (postgis and hstore).
+- A Mapillary access token is required and needs to be provided in the `02_credentials.json` file. You can obtain a free token as described [here](https://help.mapillary.com/hc/en-us/articles/360010234680-Accessing-imagery-and-data-through-the-Mapillary-API#h_e18c3f92-8b3c-4d26-8a1b-a880bde3a645).
 
 ### User Input
 
-- Specify the the bounding box of the region of interest in the `config.py` file and provide a `name`
-- If you want to use a different road network than OSM, add a table with LINESTRINGs to your PostGis database, within your config, set the parameter `pbf_path=None` and adjust the parameter `"custom_attrs":{"edge_table_name": "SQL_TABLE_NAME"},`
+#### Quick Start (TL;DR)
+
+Use the `configs/01_1_area_of_interest_config_example.json` as a template for `my_config_file.json` and specify attributes `name` (str), `minLon`, `minLat`, `maxLon`, `maxLat` of the bounding box of your area of interest.
+Limit the OSM road network (global config parameter `osm_region`) to the required scope ("germany" takes approx. 30GB database storage).
+
+Execute the pipeline with `python src/main.py -c my_config_file` 
+
+The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
+
+#### Details
+
+The configuration files are constructed to provide one global configuration file that sets parameters regardless of the specific *area of interest*. For each area of interest, defined by its geographical bounding box, a dedicated config file is used. 
+This allows you to specify multiple areas of interest. Within the specific configuration file, you may overwrite any global parameter. 
+The `00_global_config.json` is always considered, while you provide the area of interest config file name when starting the program (without `.json` file ending): `python src/main.py -c my_config_file` 
+
+- Specify region for the underlying OSM road network with `osm_region` suitable for your area(s) of interest. Names as available from Geofabrik (e.g., "germany", "berlin", "hessen"). E.g., you can specify "germany" if you have mulitple municipalities all over Germany as areas of interest. If you are only interested in a certain region, specify a smaller region, as the initialization runs faster and requires less storage.
+- If you already have pbf files downloaded and stored at a different location, you can change the `pbf_folder`in the global config.
+- Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the area of interest in `configs/my_config_file.json` file and provide a `name`. See the example config file `configs/01_1_area_of_interest_config_example.json`.
+- If you want to use a different road network than OSM, set the parameter `osm_region=None` within the config file and set `road_network_path` to your Shapefile source file location. 
+The road network dataset is expected to have a `geom` column and a `road_type` column (with values from: `road`, `path`, `sidewalk`, `cycleway`, `bike_lane`). 
+If no road type value is available, a column with `null` values will be initialized automatically. For each road with value `null` classifications for all potential road types will be returned (according to an road type image classification model). 
+You may have an identifier column in your custom road network that you wish to maintain in the output. This can be specified via the config parameter `additional_id_column`.
+See the example `configs/01_2_custom_road_network_area_of_interest_config_example.json`
+
+- In `00_global_config.json` a set of global config parameters that are all set to defaults do not require change (but may be adjusted)
+They consist of the following: 
+    - Database keys for `dbname`, as specified in `02_credentials.json`
+    - Mapillary API specifications: 
+        - `img_size`indicates the size of the Mapillary image to download, given by the image width. Options according to the Mapillary API: `thumb_original_url`, `thumb_2048_url`, `thumb_1024_url`, `thumb_256_url`
+        - `parrallel`(bool), whether image download should be parallelized
+        - `parallel_batch_size`maximum images to download in parallel
+    - Geospatial operation parameters:    
+        - `proj_crs`: EPSG code of projected CRS to use for distance computations (for areas of interest in Europe 3035 is suitable)
+        - `dist_from_road`: maximum distance from road in CRS unit (usually meters) for an image to be assigned to the road,
+        - `segment_length`: length of a subsegment for aggregation algorithm,
+        - `min_road_length`: short roads, which are common in OSM, like driveways, can be excluded to reduce cluttering and noise. This parameter specifies the minimum road length to be included.
+        - `segments_per_group`: deprecated
+    - Classification model specific parameters:
+        - `model_root`: path to root folder of models
+        - `models`(dict): required keys: `road_type`, `surface_type`, `surface_quality`(with sub keys `asphalt`, `concrete`, `paving_stones`, `sett`, `unpaved`). Each value indicates the pt. file of the respective weights 
+        - `gpu_kernel`: if more than one GPU kernel is available, the one to be used can be specified here
+        - `transform_surface` and `transform_road_type` (dict): with keys `resize`and `crop`specifying the transform operations conducted on images for these modelse
+        - `batch_size`model batch size
+
+You can overwrite any paramter in the specific config. E.g., the `dist_to_road`shall be 10 meters for all area of interest, except one, then you can overwrite the parameter by setting `dist_to_road` within the specific config as well with the desired parameter.
 
 ### Run SurfaceAI
 
-Create an environment and install requirements
+Using [`poetry`](https://python-poetry.org/) for dependency management, install poetry: 
+
+```bash 
+    pipx install poetry
+```
+
+Create an environment using poetry
+
+```bash 
+    poetry shell
+```
+
+Install required packages, as defined in `pyproject.toml`
+
+```bash 
+    poetry install
+```
+
+
+
+Start the pipeline by running:
 
 ```bash
-    conda create --name surfaceai
-    conda activate surfacai
-    pip install -r requirements.txt
+    python src/main.py  -c CONFIG_NAME
 ```
 
-Start the pipeline by running
+The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
 
+If database to create further area of interest datasets is no longer needed, remove database with (OSM) road network:
 
-```python
-    python src/pipeline.py  CONFIG_NAME
+```bash
+dropdb YOUR_DBNAME
 ```
+
+(With default param from `00_global_config.json` `dropdb surfaceai`.)
 
 ## Implementation details
 
 ### Pipeline:
 
-![Schematic illustration of model pipeline](img/model_pipeline.png)
 
 - setup Postgres database with PostGIS and osmosis extension
 - query all image metadata within the provided bounding box from Mapillary and write to database
@@ -52,11 +120,11 @@ Start the pipeline by running
 - aggregate single classifications to road network classification (see details below)
 - store Shapefile of results
 
-## Surface classification 
+### Surface classification 
 
 See https://github.com/SurfaceAI/classification_models
 
-## Aggregation algorithm 
+### Aggregation algorithm 
 
 The aggregation algorithm runs as follows:
 

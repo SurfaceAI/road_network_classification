@@ -1,0 +1,39 @@
+{
+    "dbname": "surfaceai",
+    "pbf_folder" : "data/osm_pbf",
+    "osm_region" : "germany",
+    
+    "img_size": "thumb_1024_url",
+    "parallel": true,
+    "parallel_batch_size": 100,
+
+    "proj_crs": 3035,
+    "dist_from_road": 10,
+    "segment_length": 20,
+    "min_road_length" : 10,
+    "segments_per_group": null,
+
+    "model_root": "models/",
+    "hf_model_repo": "SurfaceAI/models",
+    "models": {
+        "surface_type": "v1/surface_type_v1.pt",
+        "surface_quality": {
+            "asphalt": "v1/surface_quality_asphalt_v1.pt",
+            "concrete": "v1/surface_quality_concrete_v1.pt",
+            "paving_stones": "v1/surface_quality_paving_stones_v1.pt",
+            "sett": "v1/surface_quality_sett_v1.pt",
+            "unpaved": "v1/surface_quality_unpaved_v1.pt"
+        },
+        "road_type": "v1/road_type_v1.pt"
+    },
+    "gpu_kernel": 0,
+    "transform_surface": {
+        "resize": 384,
+        "crop": "lower_middle_half"
+    },
+    "transform_road_type": {
+        "resize": 384,
+        "crop": "lower_half"
+    },
+    "batch_size": 48
+}

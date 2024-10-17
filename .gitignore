@@ -1,11 +1,14 @@
 src/lndw.*
 src/temp.*
+models
 data
 data/*
 .DS_Store
 *.qgz
-mapillary_token.txt
-database_credentials.py
+.vscode
+poetry.lock
+configs/02_credentials.json
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

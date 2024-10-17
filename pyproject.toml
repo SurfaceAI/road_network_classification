@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "surfaceai"
+version = "0.0.1"
+description = "SurfaceAI: pipeline to create road surface data from crowd-sourced street-view images"
+authors = ["Alexandra Kapp <alexandra.kapp@posteo.de>", "Edith Hoffmann <edith.hoffmann@htw-berlin.de>"]
+license = "{file = \"LICENSE.txt\"}"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.32.3"
+mercantile = "^1.2.1"
+vt2geojson = "^0.2.1"
+pillow = "^10.4.0"
+tqdm = "^4.66.5"
+torch = "2.2.2"
+torchvision = "0.17.2"
+numpy = "1.26.4"
+psycopg2 = "^2.9.9"
+psycopg2-binary = "^2.9.9"
+huggingface-hub = "^0.25.2"
+pydriosm = "^2.2.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-mock = "^3.14.0"
+ruff = "^0.6.9"
+mypy = "^1.11.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

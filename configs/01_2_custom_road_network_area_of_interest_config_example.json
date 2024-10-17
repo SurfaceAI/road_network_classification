@@ -1,0 +1,12 @@
+{
+    "name": "Custom_Road_Network",
+    
+    "minLon": 13.654175,
+    "minLat": 51.00662,
+    "maxLon": 13.828583,
+    "maxLat": 51.094676,
+    
+    "osm_region": null,
+    "road_network_path": "path/to/road_network.shp",
+    "additional_id_column": "my_id_col"
+}

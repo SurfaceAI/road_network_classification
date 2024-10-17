@@ -1,6 +1,6 @@
-drop table if exists {table_name_point_selection};
+drop table if exists {name}_reduced_img_selection;
 
-CREATE TABLE {table_name_point_selection} AS 
+CREATE TABLE {name}_reduced_img_selection AS 
   select *
   FROM (
   SELECT
@@ -8,5 +8,5 @@ CREATE TABLE {table_name_point_selection} AS
   -- ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY random()) AS rn -- random selection
   ROW_NUMBER() OVER (PARTITION BY p.segment_id ORDER BY p.captured_at DESC) AS rn -- select most current
   FROM  {table_name} p
-) AS sampled
-WHERE rn <= {n_per_segment}; -- select n points per segment
+) AS sampled;
+--WHERE rn <= n_per_segment; -- select n points per segment

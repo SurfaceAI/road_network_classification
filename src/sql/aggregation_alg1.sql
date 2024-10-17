@@ -2,12 +2,9 @@
 ALTER TABLE {name}_segmented_ways
 ADD COLUMN if not exists group_num INT;
 
---alter table {name}_point_selection drop column group_num;
-
 -- Update the table to set the group number based on segment_number
 UPDATE {name}_segmented_ways
-SET group_num = segment_number / {segments_per_group};
-
+SET group_num = {group_num};
 
 drop table if exists {name}_eval_groups ;
 drop table if exists {name}_group_predictions ;
@@ -20,7 +17,7 @@ WITH GroupedSegments AS (
         road_type,
         ST_LineMerge(ST_Union(geom)) AS geometry
     FROM (
-	    select {additional_id_column}ways.id, ways.group_num, ways.segment_number, 
+	    select {additional_ways_id_column}ways.id, ways.group_num, ways.segment_number, 
         part.part_id, part.road_type, part.geom
 	    from {name}_segmented_ways ways
 	    join {name}_partitions part
