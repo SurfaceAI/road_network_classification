@@ -36,7 +36,6 @@ class AreaOfInterest:
                 - segment_length (int, optional): Length of subsegments for aggregation algorithm.
                 - segments_per_group (int, optional): Number of segments per group.
                 - additional_id_column (str, optional): Additional column to use as an ID for custom road networks. Defaults to None.
-                - custom_sql_way_selection (bool, optional): Custom SQL query for way selection. Defaults to False.
         """
 
         # TODO: verify config inputs
@@ -71,11 +70,6 @@ class AreaOfInterest:
             if "additional_id_column" not in config.keys()
             else config.get("additional_id_column")
         )
-        self.sql_way_selection = (
-                const.SQL_WAY_SELECTION
-                if not config.get("custom_sql_way_selection", False)
-                else config.get("custom_sql_way_selection", False)
-            )
 
         self.query_params = self._get_query_params()
 
@@ -126,6 +120,7 @@ class AreaOfInterest:
         )
 
         for i in tqdm(range(0, len(tiles))):
+            # TODO: parallellize?
             tile = tiles[i]
             header, output = mi.metadata_in_tile(tile)
             rows = np.array(output)
@@ -181,5 +176,6 @@ class AreaOfInterest:
             ]
             db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
             # print(f"db insert {time.time() - start}")
+            break
 
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)

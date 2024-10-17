@@ -100,7 +100,6 @@ class MapillaryInterface:
                 response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
             )
             # a feature is a point/image
-            # TODO: can this be speed up?
             for feature in data["features"]:
                 output.append(
                     [

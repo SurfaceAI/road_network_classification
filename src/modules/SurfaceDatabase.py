@@ -12,31 +12,34 @@ class SurfaceDatabase:
     """Database class to handle database setup and data processing"""
 
     def __init__(
-        self, dbname, dbuser, dbhost, dbpassword, pbf_path=None, alt_road_network=None
+        self, dbname, dbuser, dbpassword, dbhost, dbport, pbf_path=None, road_network_path=None, sql_custom_way_prep=None
     ):
         """Initializes the database class
 
         Args:
             dbname (str): name of the database
             dbuser (str): name of the database user
-            dbhost (str): database host
             dbpassword (str): database password
-            pbf_path (str, optional): path to the pbf file for the OSM road network. If provided, alt_road_network is ignored. Defaults to None.
-            alt_road_network (str, optional): Alternative road network to OSM. If pbf_path is None, required. Defaults to None.
+            dbhost (str): database host
+            dbport (str): database port
+            pbf_path (str, optional): path to the pbf file for the OSM road network. If provided, road_network_path is ignored. Defaults to None.
+            road_network_path (str, optional): Alternative road network to OSM. If pbf_path is None, required. Defaults to None.
         """
         self.dbname = dbname
         self.dbuser = dbuser
         self.dbhost = dbhost
+        self.dbport = dbport
         self.dbpassword = dbpassword
         self.pbf_path = pbf_path
-        self.alt_road_network = alt_road_network
+        self.road_network_path = road_network_path
+        self.sql_custom_way_prep = sql_custom_way_prep
 
-        self.setup_database(pbf_path, alt_road_network)
+        self.setup_database()
 
     def __repr__(self):
         return f"Database(name={self.dbname}, tables={self.get_table_names()}, input_road_network={self.pbf_path})"
 
-    def setup_database(self, pbf_path, alt_road_network=None):
+    def setup_database(self):
         """
         Setup the database with the provided pbf file
         """
@@ -49,13 +52,10 @@ class SurfaceDatabase:
             logging.info("database already exists. Skip DB creation step.")
         else:
             logging.info(
-                "setup database. Depending on the pbf_file size this might take a while"
-            )
-            osmosis_scheme_file = (
-                Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
+                "Setup database"
             )
             subprocess.run(
-                f"createdb -h {self.dbhost} {self.dbname} -U {self.dbuser}",
+                f"createdb {self.dbname} -h {self.dbhost} -p {self.dbport} -U {self.dbuser}",
                 shell=True,
                 executable="/bin/bash",
             )
@@ -64,24 +64,38 @@ class SurfaceDatabase:
                 shell=True,
                 executable="/bin/bash",
             )
-            subprocess.run(
-                f"psql  -d {self.dbname} -c 'CREATE EXTENSION hstore;'",
-                shell=True,
-                executable="/bin/bash",
-            )
-            subprocess.run(
-                f"psql -d {self.dbname} -f {osmosis_scheme_file}",
-                shell=True,
-                executable="/bin/bash",
-            )
-            subprocess.run(
-                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser} password={self.dbpassword}""",
-                shell=True,
-                executable="/bin/bash",
-            )
-            logging.info("database setup complete")
+            if self.pbf_path:
+                    logging.info(f"using pbf file {self.pbf_path}. Depending on the file size this might take a while")
+                    subprocess.run(
+                        f"psql  -d {self.dbname} -c 'CREATE EXTENSION hstore;'",
+                        shell=True,
+                        executable="/bin/bash",
+                    )
+                    osmosis_scheme_file = (
+                        Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
+                    )
+                    subprocess.run(
+                        f"psql -d {self.dbname} -f {osmosis_scheme_file}",
+                        shell=True,
+                        executable="/bin/bash",
+                    )
+                    subprocess.run(
+                        f"""osmosis --read-pbf {self.pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser} password={self.dbpassword}""",
+                        shell=True,
+                        executable="/bin/bash",
+                    )
+            elif self.road_network_path:
+                subprocess.run(
+                    f'ogr2ogr -f "PostgreSQL" PG:"dbname={self.dbname} user={self.dbuser} password={self.dbpassword} host={self.dbhost} port={self.dbport}" "{self.road_network_path}" -nln ways -overwrite',
+                    shell=True,
+                    executable="/bin/bash",
+                )
+                logging.info(f"Road network added to database from {self.road_network_path}")
+                self.execute_sql_query(self.sql_custom_way_prep, {})
 
-        # TODO: implement alt_road_network alternative
+            else:
+                logging.error("No road network provided")
+            logging.info("database setup complete")
 
     def create_dbconnection(self):
         """Create a connection to the database
@@ -93,6 +107,7 @@ class SurfaceDatabase:
             dbname=self.dbname,
             user=self.dbuser,
             host=self.dbhost,
+            port=self.dbport,
             password=self.dbpassword,
         )
 

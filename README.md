@@ -34,8 +34,9 @@ The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
 The configuration files are constructed to provide one global configuration file that sets parameters regardless of the specific area of interest. For each area of interest, defined by its geographical bounding box, another specific config file is created. This allows you to speficy multiple area of interest. Within the specific configuration file, you may overwrite any global parameter. The `00_global_config.json` is always considered, while you specify the specific area of interest config file when starting the program: `python src/main.py -c my_config_file` 
 
 
-- Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the region of interest in `configs/your_config.json` file and provide a `name`
-- If you want to use a different road network than OSM, add a table with LINESTRINGs to your PostGIS database as table {name}_way_selection, within your config, set the parameter `pbf_path=None`.
+- Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the region of interest in `configs/your_config.json` file and provide a `name`. See the example config file `configs/01_1_area_of_interest_config_example.json`.
+- If you want to use a different road network than OSM, set the parameter `pbf_path=None` within the config.json file and set `road_network_path` to your Shapefile source file location. The dataset is expected to have a `geom` column and a `road_type` column (with values from: `road`, `path`, `sidewalk`, `cycleway`, `bike_lane`). If no road type value is available, a column with `null` values will be initialized automatically. For each road with value `null` classifications for all potential road types will be returned (according to an road type image classification model). You may have an identifier column in your custom road network that you wish to maintain in the output. This can be specified via the config parameter `additional_id_column`.
+See the example `configs/01_2_custom_road_network_area_of_interest_config_example.json`
 
 - In `00_global_config.json` a set of global config parameters that are all set to defaults do not require change (but may be adjusted)
 They consist of the following: 

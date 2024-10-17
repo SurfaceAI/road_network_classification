@@ -1,4 +1,3 @@
--- sidewalk right
 with RoadTypeInfo as(
 	select SEG.id, segment_id, sidewalk, sidewalk_left, sidewalk_right, cycleway_right, 
 	cycleway_left,	cycleway_both,SEG.geom
@@ -6,6 +5,7 @@ with RoadTypeInfo as(
 	join {name}_way_selection as WS
 	on WS.id = SEG.id
 )
+-- sidewalk right
 INSERT INTO {name}_partitions (segment_id, part_id, road_type, geom)
 SELECT segment_id, 2, 'footway', ST_OffsetCurve(geom, -5) 
 FROM RoadTypeInfo

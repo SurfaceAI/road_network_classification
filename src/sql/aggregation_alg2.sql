@@ -54,7 +54,6 @@ WITH ImgMetadataClassification AS (
 	WHERE (img.requ_road_type is false or 
 		   img.road_type_pred=p.road_type) and img.road_type_pred != 'other';
 
--- TODO: when image is assigned to two partitions only keep the one thats closer
 WITH RankedImages AS (
     SELECT
         img.*,

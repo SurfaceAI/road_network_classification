@@ -5,7 +5,7 @@ drop table if exists ways_selection;
 
 CREATE TEMP TABLE node_selection AS
 SELECT *, 
-st_transform(geom, 3035) AS geom_transformed
+st_transform(geom, {crs}) AS geom_transformed
  FROM nodes WHERE ST_Within(
         geom,
          ST_SetSRID(ST_MakeEnvelope({bbox0}, {bbox1}, {bbox2}, {bbox3}), 4326)
@@ -56,8 +56,8 @@ UPDATE {name}_way_selection
 SET road_type = CASE
     WHEN highway IN ('motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 
     'secondary', 'secondary_link', 'tertiary', 'tertiary_link', 'residential', 
-    'living_street', 'service', 'track', 'road', 'path') THEN 'road'
-    WHEN highway IN ( 'unclassified', 'service', 'track', 'path') THEN 'path'
+    'living_street', 'service', 'road', 'unclassified') THEN 'road'
+    WHEN highway IN ('track', 'path') THEN 'path'
     WHEN (highway = 'cycleway') and (cycleway = 'lane') THEN 'bike_lane'
     WHEN highway = 'cycleway' THEN 'cycleway'
     WHEN highway IN ('footway', 'pedestrian', 'steps') THEN 'footway'
