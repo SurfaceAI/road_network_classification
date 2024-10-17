@@ -17,8 +17,8 @@ def process_area_of_interest(db, aoi, mi, md):
     aoi.get_and_write_img_metadata(mi, db)
 
     logging.info("create road segments in bounding box")
-    # TODO: speed up?
-    db.execute_sql_query(aoi.custom_query_files["way_selection"], aoi.query_params)
+    query_path = const.SQL_WAY_SELECTION if db.pbf_path else const.SQL_WAY_SELECTION_CUSTOM
+    db.execute_sql_query(query_path, aoi.query_params)
 
     logging.info(f"cut lines into subsegments of length {aoi.segment_length}")
     db.execute_sql_query(const.SQL_SEGMENT_WAYS, aoi.query_params)
@@ -30,13 +30,17 @@ def process_area_of_interest(db, aoi, mi, md):
     logging.info("classify images")
     aoi.classify_images(mapillary_interface, surface_database, model_interface)
 
-    if aoi.custom_query_files["roadtype_separation"] is not None:
+    db.execute_sql_query(const.SQL_PREPARE_PARTITIONS, aoi.query_params)
+    if db.pbf_path is not None: # is OSM file?
         logging.info("create partitions for each road type of a road segment")
         db.execute_sql_query(
-            aoi.custom_query_files["roadtype_separation"], aoi.query_params
+            const.SQL_SEPARATE_ROAD_TYPES, aoi.query_params
         )
     else:
-        logging.info("no road type separation needed")
+        db.execute_sql_query(
+            const.SQL_SEPARATE_NULL_ROAD_TYPES, aoi.query_params
+        )
+        logging.info("custom road network - create cycleway and sidewalk partitions for all null valued roads")
 
     logging.info("aggregate by road segment")
     # split into three scripts for faster execution
@@ -56,10 +60,7 @@ if __name__ == "__main__":
     root_path = Path(os.path.abspath(__file__)).parent.parent
     global_config_path = root_path / "configs" / "00_global_config.json"
     credentials_path = root_path / "configs" / "02_credentials.json"
-    if args.configfile:
-        config_path = root_path / "configs" / f"{args.configfile}.json"
-    else:
-        config_path = root_path / "configs" / "dresden_small.json"
+    config_path = root_path / "configs" / f"{args.configfile}.json"
 
     # Read and parse the JSON configuration file
     with open(global_config_path, "r") as config_file:
@@ -80,13 +81,16 @@ if __name__ == "__main__":
     model_interface = md.ModelInterface(cg)
 
     # TODO: only append root_path if pbf_path is a relative path
-    cg["pbf_path"] = root_path / cg.get("pbf_path")
+    #cg["pbf_path"] = root_path / cg.get("pbf_path")
     surface_database = sd.SurfaceDatabase(
         credentials[cg.get("dbname")],
-        credentials[cg.get("dbuser")],
-        credentials[cg.get("dbhost")],
-        credentials[cg.get("dbpassword")],
-        cg.get("pbf_path"),
+        credentials["user"],
+        credentials["password"],
+        credentials["host"],
+        credentials["port"],
+        cg.get("pbf_path", None),
+        cg.get("road_network_path", None),
+        cg.get("sql_custom_way_prep", None)
     )
 
     process_area_of_interest(
@@ -96,7 +100,7 @@ if __name__ == "__main__":
     os.makedirs(root_path / "data", exist_ok=True)
     # write results to shapefile
     run = f"_{area_of_interest.run}" if area_of_interest.run else ""
-    output_file = root_path / "data" / f"{area_of_interest.name}{run}_surfaceai.shp"
+    output_file = root_path / "data" / "output" / f"{area_of_interest.name}{run}_surfaceai.shp"
     surface_database.table_to_shapefile(
         f"{area_of_interest.name}_group_predictions", output_file
     )

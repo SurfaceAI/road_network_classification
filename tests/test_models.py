@@ -14,7 +14,7 @@ def model_interface():
     # Set up any necessary objects or state before each test
     return ModelInterface(
         dict(
-            model_root="models",
+            model_root="/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/trained_models",
             hf_model_repo = "SurfaceAI/models",
             models={
                 "surface_type": "v1/surface_type_v1.pt",
@@ -64,9 +64,6 @@ def test_model_predict(model_interface):
         image_path=os.path.join(root_dir, "tests", "test_data", f"{image_id}.jpg")
         input_data.append(Image.open(image_path))
 
-    
-
-     # TODO: store example image in test_data and read it here
     expected_output= [
         ['1_1_road__1_1_road_general', round(0.9949304461479187, 5), 'asphalt', round(0.99986732006073, 5), round(2.195223569869995, 5)],
         ['1_3_pedestrian__1_3_footway', round(0.9967668056488037, 5), 'paving_stones', round(0.9456618428230286, 5), round(4.516800880432129, 5)],

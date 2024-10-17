@@ -1,11 +1,7 @@
 {
-
     "pbf_path" : "data/germany-latest.osm.pbf",
     
     "dbname": "database",
-    "dbuser": "user",
-    "dbhost": "host",
-    "dbpassword": "password",
     
     "img_size": "thumb_1024_url",
     "parallel": true,

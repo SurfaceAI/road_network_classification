@@ -5,11 +5,11 @@
     "minLat": 52.377425,
     "maxLon": 13.7416329,
     "maxLat": 52.660392,
-    "database": "databaseBerlinPrio",
+    "dbname": "databaseBerlinPrio",
     "pbf_path": null,
-    "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
+    "road_network_path": "cust_road_network.shp",
+    "sql_custom_way_prep": "src/sql/prep_ways_berlin.sql",
+    "additional_id_column": "elem_nr",
     "proj_crs": 25833,
-    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_all-20240810_170444.csv",
-    "road_type_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_all-20240811_053246.csv",
     "min_road_length" : 0
 }

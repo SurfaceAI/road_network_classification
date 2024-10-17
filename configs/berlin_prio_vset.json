@@ -1,15 +1,14 @@
 {
     "name": "berlin_prio_vset",
-    "run": "run10",
+    "run": "run11",
     "minLon": 13.35108089,
     "minLat": 52.454059600,
     "maxLon": 13.43233203,
     "maxLat": 52.5186462,
     "dbname": "databaseBerlinPrio",
     "pbf_path": null,
-    "custom_sql_way_selection": "src/sql/way_selection_berlin.sql",
+    "road_network_path": "cust_road_network.shp",
+    "sql_custom_way_prep": "src/sql/prep_ways_berlin.sql",
     "additional_id_column": "elem_nr",
-    "proj_crs": 25833,
-    "pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_surface_quality_prediction-berlin_vset_all-20240716_151503.csv",
-    "road_type_pred_path": "/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/data/mapillary_images/berlin/prediction/effnet_scenery_prediction-berlin_vset_all-20240917_184531.csv"
+    "proj_crs": 25833
 }
