@@ -1,0 +1,11 @@
+{
+    "name": "Area_of_Interest",
+    
+    "minLon": 13.654175,
+    "minLat": 51.00662,
+    "maxLon": 13.828583,
+    "maxLat": 51.094676,
+    
+    "additional_id_column": null,
+    "custom_sql_way_selection": false
+}

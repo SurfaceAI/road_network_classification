@@ -1,14 +1,14 @@
 import concurrent.futures
+import io
 import logging
 import os
 import sys
-import io
 import time
 from itertools import repeat
 from pathlib import Path
-from PIL import Image
 
 import requests
+from PIL import Image
 from requests.exceptions import ConnectTimeout
 from tqdm import tqdm
 from vt2geojson.tools import vt_bytes_to_geojson
@@ -36,8 +36,9 @@ class MapillaryInterface:
         self.parallel = parallel
         self.parallel_batch_size = parallel_batch_size
 
-
-    def query_mapillary(self, request_url, request_params, request_timeout=10, max_retries=10):
+    def query_mapillary(
+        self, request_url, request_params, request_timeout=10, max_retries=10
+    ):
         max_retries = 10
         retries = 0
         while retries < max_retries:
@@ -50,21 +51,22 @@ class MapillaryInterface:
                 if response.status_code != 200:
                     logging.info(response.status_code)
                     logging.info(response.reason)
-                    #logging.info(f"image_id: {img_id}")
+                    # logging.info(f"image_id: {img_id}")
                     return None
                 else:
                     return response
             except ConnectTimeout:
                 retries += 1
-                wait_time =  (2 ** (retries - 1))*60
-                logging.info(f"Connection timed out. Retrying in {wait_time/60} minutes...")
+                wait_time = (2 ** (retries - 1)) * 60
+                logging.info(
+                    f"Connection timed out. Retrying in {wait_time/60} minutes..."
+                )
                 time.sleep(wait_time)
             except requests.exceptions.RequestException as e:
-                print(f"Request failed: {e}")
+                logging.warning(f"Request failed: {e}")
                 return None
         return None
-    
-   
+
     def metadata_in_tile(self, tile):
         """Get metadata for all images within a tile from mapillary (based on https://graph.mapillary.com/:image_id endpoint)
         Args:
@@ -75,7 +77,6 @@ class MapillaryInterface:
         """
         header = [
             "img_id",
-            "tile_id",
             "sequence_id",
             "captured_at",
             "compass_angle",
@@ -84,14 +85,13 @@ class MapillaryInterface:
             "lon",
             "lat",
         ]
-        tile_id = str(int(tile.x)) + "_" + str(int(tile.y)) + "_" + str(int(tile.z))
 
         output = list()
         response = self.query_mapillary(
             const.MAPILLARY_TILE_URL.format(
                 const.TILE_COVERAGE, int(tile.z), int(tile.x), int(tile.y)
             ),
-            {"access_token": self.token}
+            {"access_token": self.token},
         )
         if response is None:
             return (header, None)
@@ -105,7 +105,6 @@ class MapillaryInterface:
                 output.append(
                     [
                         feature["properties"]["id"],
-                        tile_id,
                         feature["properties"]["sequence_id"],
                         feature["properties"]["captured_at"],
                         feature["properties"]["compass_angle"],
@@ -117,14 +116,13 @@ class MapillaryInterface:
                 )
             return (header, output)
 
-
-    def query_img (self, img_id, img_size):
+    def query_img(self, img_id, img_size):
         response = self.query_mapillary(
             const.MAPILLARY_GRAPH_URL.format(int(img_id)),
             {
                 "fields": img_size,
                 "access_token": self.token,
-            }
+            },
         )
         if response is not None:
             data = response.json()
@@ -159,15 +157,11 @@ class MapillaryInterface:
 
             for i in range(0, len(img_ids), parallel_batch_size):
                 with concurrent.futures.ThreadPoolExecutor() as executor:
-                    j = min(
-                        i + parallel_batch_size,
-                        len(img_ids))
+                    j = min(i + parallel_batch_size, len(img_ids))
 
-                    batch_imgs = list(executor.map(
-                        self.query_img,
-                        img_ids[i:j],
-                        repeat(img_size)
-                    ))
+                    batch_imgs = list(
+                        executor.map(self.query_img, img_ids[i:j], repeat(img_size))
+                    )
                     imgs.extend(batch_imgs)
 
         else:
@@ -175,7 +169,6 @@ class MapillaryInterface:
                 img_id = img_ids[i]
                 img = self.query_img(img_id, img_size)
                 imgs.append(img)
-        
+
         imgs = [item for item in imgs if item is not None]
         return imgs
-

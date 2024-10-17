@@ -7,6 +7,7 @@ data/*
 *.qgz
 .vscode
 poetry.lock
+configs/02_credentials.json
 
 
 # Byte-compiled / optimized / DLL files

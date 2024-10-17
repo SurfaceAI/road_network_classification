@@ -2,51 +2,39 @@ import argparse
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 
-from modules import (
-    AreaOfInterest as aoi,
-)
-from modules import (
-    MapillaryInterface as mi,
-)
-
 ## local modules
-from modules import (
-    SurfaceDatabase as sd,
-    MapillaryInterface as mi,
-    AreaOfInterest as aoi,
-    Models as md,
-)
-
 import constants as const
+from modules import AreaOfInterest as aoi
+from modules import MapillaryInterface as mi
+from modules import Models as md
+from modules import SurfaceDatabase as sd
 
 
 def process_area_of_interest(db, aoi, mi, md):
     logging.info(f"query img metadata and store in database {db.dbname}")
-    # aoi.get_and_write_img_metadata(mi, db)
+    aoi.get_and_write_img_metadata(mi, db)
 
-    # logging.info("create linestrings in bounding box")
-    # # TODO: speed up?
-    # db.execute_sql_query(aoi.custom_query_files["way_selection"], aoi.query_params)
+    logging.info("create road segments in bounding box")
+    # TODO: speed up?
+    db.execute_sql_query(aoi.custom_query_files["way_selection"], aoi.query_params)
 
-    # logging.info(f"cut lines into segments of length {aoi.segment_length}")
-    # db.execute_sql_query(const.SQL_SEGMENT_WAYS, aoi.query_params)
+    logging.info(f"cut lines into subsegments of length {aoi.segment_length}")
+    db.execute_sql_query(const.SQL_SEGMENT_WAYS, aoi.query_params)
 
-    # logging.info("match images to road segments")
-    # db.execute_sql_query(const.SQL_MATCH_IMG_ROADS, aoi.query_params)
+    logging.info("match images to subsegments")
+    db.execute_sql_query(const.SQL_MATCH_IMG_ROADS, aoi.query_params)
 
     ##### classify images
-    # TODO: include classification model into pipeline
     logging.info("classify images")
     aoi.classify_images(mapillary_interface, surface_database, model_interface)
 
     if aoi.custom_query_files["roadtype_separation"] is not None:
-        logging.info(
-            "create partitions for each road type of a road segment"
+        logging.info("create partitions for each road type of a road segment")
+        db.execute_sql_query(
+            aoi.custom_query_files["roadtype_separation"], aoi.query_params
         )
-        db.execute_sql_query(aoi.custom_query_files["roadtype_separation"], aoi.query_params)
     else:
         logging.info("no road type separation needed")
 
@@ -62,12 +50,12 @@ if __name__ == "__main__":
 
     # load config
     parser = argparse.ArgumentParser(prog="surfaceAI")
-    parser.add_argument('-c', '--configfile')
+    parser.add_argument("-c", "--configfile")
     args = parser.parse_args()
 
     root_path = Path(os.path.abspath(__file__)).parent.parent
-    global_config_path = root_path / "configs"/ "00_global_config.json"
-    credentials_path = root_path / "configs" / "01_credentials.json"
+    global_config_path = root_path / "configs" / "00_global_config.json"
+    credentials_path = root_path / "configs" / "02_credentials.json"
     if args.configfile:
         config_path = root_path / "configs" / f"{args.configfile}.json"
     else:
@@ -101,11 +89,16 @@ if __name__ == "__main__":
         cg.get("pbf_path"),
     )
 
-    process_area_of_interest(surface_database, area_of_interest, mapillary_interface, model_interface)
+    process_area_of_interest(
+        surface_database, area_of_interest, mapillary_interface, model_interface
+    )
 
     os.makedirs(root_path / "data", exist_ok=True)
     # write results to shapefile
-    output_file = root_path / "data" / f"{area_of_interest.name}_{area_of_interest.run}_pred.shp"
+    run = f"_{area_of_interest.run}" if area_of_interest.run else ""
+    output_file = root_path / "data" / f"{area_of_interest.name}{run}_surfaceai.shp"
     surface_database.table_to_shapefile(
         f"{area_of_interest.name}_group_predictions", output_file
     )
+
+    # surface_database.remove_aoi_tables(area_of_interest.name)

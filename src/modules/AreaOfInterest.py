@@ -4,10 +4,7 @@ from pathlib import Path
 
 import mercantile
 import numpy as np
-import pandas as pd
-import mercantile
-from PIL import Image
-import io
+import logging
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -15,8 +12,6 @@ sys.path.append(str(src_dir))
 from tqdm import tqdm
 
 import constants as const
-import utils
-from modules import Models
 
 
 class AreaOfInterest:
@@ -42,16 +37,13 @@ class AreaOfInterest:
                 - segments_per_group (int, optional): Number of segments per group.
                 - additional_id_column (str, optional): Additional column to use as an ID for custom road networks. Defaults to None.
                 - custom_sql_way_selection (bool, optional): Custom SQL query for way selection. Defaults to False.
-                - custom_road_type_join (bool, optional): Custom SQL query for road type join. Defaults to False.
-                - custom_attrs (dict, optional): Custom attributes for road network. Defaults to {}.
-                - custom_road_type_separation (bool, optional): Custom road type separation SQL script. Defaults to False.
         """
 
         # TODO: verify config inputs
         self.config = config
 
         self.name = config.get("name")
-        self.run = config.get("run")
+        self.run = config.get("run", None)
         self.minLon = config.get("minLon")
         self.minLat = config.get("minLat")
         self.maxLon = config.get("maxLon")
@@ -71,7 +63,7 @@ class AreaOfInterest:
         # road network variables
         self.min_road_length = config.get("min_road_length")
         self.segment_length = config.get("segment_length")
-        self.segments_per_group = config.get("segments_per_group")
+        self.segments_per_group = config.get("segments_per_group", None)
 
         # customizations
         self.additional_id_column = (
@@ -79,31 +71,31 @@ class AreaOfInterest:
             if "additional_id_column" not in config.keys()
             else config.get("additional_id_column")
         )
-        self.custom_sql_way_selection = config.get("custom_sql_way_selection", False)
-        self.custom_road_type_join = config.get("custom_road_type_join", False)
-        self.custom_attrs = config.get("custom_attrs", {})
-        self.custom_road_type_separation = config.get("custom_road_type_separation",False)
+        self.sql_way_selection = (
+                const.SQL_WAY_SELECTION
+                if not config.get("custom_sql_way_selection", False)
+                else config.get("custom_sql_way_selection", False)
+            )
 
         self.query_params = self._get_query_params()
-        self.custom_query_files = self._get_custom_query_files()
-
 
     def _get_query_params(self):
         additional_id_column = (
-            f"{self.additional_id_column}," if self.additional_id_column is not None else ""
+            f"{self.additional_id_column},"
+            if self.additional_id_column is not None
+            else ""
         )  # add comma
         grouping_ids = f"{additional_id_column}id,part_id,group_num"
         additional_ways_id_column = (
             f"ways.{additional_id_column}" if additional_id_column != "" else ""
         )
-        # if segments_per_group is None, then the eval groups are the entire length of the road segment, 
+        # if segments_per_group is None, then the eval groups are the entire length of the road segment,
         # # i.e., all subsegments have group_num 1
-        group_num = '0' if self.segments_per_group == None else f"segment_number / {self.segments_per_group}"
-        
-        # TODO: remove
-        folder = src_dir / "data" / self.run
-        surface_pred_csv_path = folder / "classification_results.csv"
-        road_type_pred_csv_path = folder / "scenery_class_results.csv"
+        group_num = (
+            "0"
+            if self.segments_per_group == None
+            else f"segment_number / {self.segments_per_group}"
+        )
 
         return {
             "name": self.name,
@@ -113,8 +105,6 @@ class AreaOfInterest:
             "bbox3": self.maxLat,
             "crs": self.proj_crs,
             "dist_from_road": self.dist_from_road,
-            "surface_pred_csv_path": surface_pred_csv_path,
-            "road_type_pred_csv_path": road_type_pred_csv_path,
             "additional_id_column": additional_id_column,
             "additional_ways_id_column": additional_ways_id_column,
             "grouping_ids": grouping_ids,
@@ -124,25 +114,16 @@ class AreaOfInterest:
             "min_road_length": self.min_road_length,
         }
 
-    def _get_custom_query_files(self):
-        return {
-            "way_selection": (
-            const.SQL_WAY_SELECTION
-            if not self.custom_sql_way_selection
-            else self.custom_sql_way_selection
-        ),
-            "roadtype_separation": (
-            const.SQL_ASSIGN_ROAD_TYPES
-            if not self.custom_road_type_separation
-            else self.custom_road_type_separation
-        )
-        }
 
-    def get_and_write_img_metadata(self, mi, db): 
+    def get_and_write_img_metadata(self, mi, db):
         # get all relevant tile ids
         db.execute_sql_query(const.SQL_CREATE_IMG_METADATA_TABLE, self.query_params)
 
-        tiles = list(mercantile.tiles(self.minLon, self.minLat, self.maxLon, self.maxLat,  const.ZOOM))
+        tiles = list(
+            mercantile.tiles(
+                self.minLon, self.minLat, self.maxLon, self.maxLat, const.ZOOM
+            )
+        )
 
         for i in tqdm(range(0, len(tiles))):
             tile = tiles[i]
@@ -150,61 +131,55 @@ class AreaOfInterest:
             rows = np.array(output)
             if len(rows) == 0:
                 continue
-            rows = rows[(rows[:, header.index("lon")].astype(float) >= self.minLon) &
-                       (rows[:, header.index("lon")].astype(float) <= self.maxLon) &
-                       (rows[:, header.index("lat")].astype(float) >= self.minLat) &
-                       (rows[:, header.index("lat")].astype(float) <= self.maxLat)]
+            rows = rows[
+                (rows[:, header.index("lon")].astype(float) >= self.minLon)
+                & (rows[:, header.index("lon")].astype(float) <= self.maxLon)
+                & (rows[:, header.index("lat")].astype(float) >= self.minLat)
+                & (rows[:, header.index("lat")].astype(float) <= self.maxLat)
+            ]
             if not self.use_pano and len(rows) > 0:
-                rows = rows[rows[:, header.index("is_pano")] == 'False']
+                rows = rows[rows[:, header.index("is_pano")] == "False"]
             if self.userid and len(rows) > 0:
                 rows = rows[rows[:, header.index("creator_id")] == self.userid]
             if len(rows) > 0:
                 db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
         db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
 
-    def format_pred_files(self):
-        file_path = self.query_params["surface_pred_csv_path"]
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        file_path = self.query_params["road_type_pred_csv_path"]
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-        surface_pred = utils.format_predictions(
-            pd.read_csv(self.pred_path, dtype={"Image": str, "Level_1": str}),
-            is_pano=self.use_pano,
-        )
-        surface_pred.to_csv(self.query_params["surface_pred_csv_path"], index=False)
-
-        road_type_pred = utils.format_scenery_predictions(
-            pd.read_csv(self.road_type_pred_path, dtype={"Image": str}),
-            is_pano=self.use_pano,
-        )
-        road_type_pred.to_csv(self.query_params["road_type_pred_csv_path"], index=False)
-
     def classify_images(self, mi, db, md):
-        import time
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
-        #img_ids = ["1000068877331935", "1000140361462393"]
+        if (db.table_exists(f"{self.name}_img_classifications")):
+            existing_img_ids = db.img_ids_from_dbtable(f"{self.name}_img_classifications")
+            logging.info(f"existing classified images: {len(existing_img_ids)}")
+            img_ids = list(set(img_ids) - set(existing_img_ids))
+            logging.info(f"remaining new images to classify: {len(img_ids)}")
 
-        for i in tqdm(range(0, len(img_ids), md.batch_size), desc="Download and classify images"):
-            j = min(i+md.batch_size, len(img_ids))
+        db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
-            #start = time.time()
+        for i in tqdm(
+            range(0, len(img_ids), md.batch_size), desc="Download and classify images"
+        ):
+            j = min(i + md.batch_size, len(img_ids))
+
             img_data = mi.query_imgs(
                 img_ids[i:j],
                 self.img_size,
             )
-            #print(f"img download {time.time() - start}")
-            start = time.time()
             model_output = md.batch_classifications(img_data)
-            #print(f"img classification {time.time() - start}")
-            
-            # TODO: current fix to turn pd to list of lists
-            model_output = model_output.values.tolist()
+
             # add img_id to model_output
-            value_list = [mo + [img_id] for img_id, mo in zip(img_ids[i:j], model_output)]
-            #start = time.time()
-            db.execute_many_sql_query(const.SQL_ADD_MODEL_PRED, 
-                                      value_list, params={"name": self.name})
-            #print(f"db insert {time.time() - start}")
-            
+            # start = time.time()
+            value_list = [
+                [img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)
+            ]
+            header = [
+                "img_id",
+                "road_type_pred",
+                "road_type_prob",
+                "type_pred",
+                "type_class_prob",
+                "quality_pred",
+            ]
+            db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
+            # print(f"db insert {time.time() - start}")
+
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)

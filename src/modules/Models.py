@@ -13,13 +13,11 @@ from torchvision import models, transforms
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(src_dir))
-# import utils
 
 import constants as const
 
 
 class ModelInterface:
-
     def __init__(self, config):
         # TODO: doc string
         self.device = torch.device(
@@ -27,16 +25,16 @@ class ModelInterface:
         )
         normalization = (const.NORM_MEAN, const.NORM_SD)
         # TODO: config is changed by transform['normalize'] = normalization
-        transform = config.get('transform_surface')
-        transform['normalize'] = normalization
+        transform = config.get("transform_surface")
+        transform["normalize"] = normalization
         self.transform_surface = transform
-        transform = config.get('transform_road_type')
-        transform['normalize'] = normalization
-        self.transform_road_type = transform 
-        self.model_root = config.get('model_root')
-        self.models = config.get('models')
-        self.batch_size = config.get('batch_size')
-        self.hf_model_repo = config.get('hf_model_repo')
+        transform = config.get("transform_road_type")
+        transform["normalize"] = normalization
+        self.transform_road_type = transform
+        self.model_root = config.get("model_root")
+        self.models = config.get("models")
+        self.batch_size = config.get("batch_size")
+        self.hf_model_repo = config.get("hf_model_repo")
 
     @staticmethod
     def custom_crop(img, crop_style=None):
@@ -62,7 +60,6 @@ class ModelInterface:
         cropped_img = transforms.functional.crop(img, top, left, height, width)
         return cropped_img
 
-
     def transform(
         self,
         resize=None,
@@ -85,7 +82,9 @@ class ModelInterface:
         transform_list = []
 
         if crop is not None:
-            transform_list.append(transforms.Lambda(partial(self.custom_crop, crop_style=crop)))
+            transform_list.append(
+                transforms.Lambda(partial(self.custom_crop, crop_style=crop))
+            )
 
         if resize is not None:
             if isinstance(resize, int):
@@ -103,25 +102,29 @@ class ModelInterface:
 
     def preprocessing(self, img_data_raw, transform):
         transform = self.transform(**transform)
-        img_data = torch.stack([transform(img) for img in  img_data_raw])
+        img_data = torch.stack([transform(img) for img in img_data_raw])
         return img_data
-    
+
     def load_model(self, model):
         model_path = Path(self.model_root) / model
         # load model data from hugging face if not locally available
         if not os.path.exists(model_path):
-            print(f"Model file not found at {model_path}. Downloading from Hugging Face...")
-            model_path_new = hf_hub_download(repo_id=self.hf_model_repo, filename=model, local_dir=self.model_root)
+            print(
+                f"Model file not found at {model_path}. Downloading from Hugging Face..."
+            )
+            model_path_new = hf_hub_download(
+                repo_id=self.hf_model_repo, filename=model, local_dir=self.model_root
+            )
             print(f"Model file downloaded to {model_path_new}.")
         model_state = torch.load(model_path, map_location=self.device)
-        model_name = model_state['model_name']
-        is_regression = model_state['is_regression']
-        class_to_idx = model_state['class_to_idx']
-        num_classes = 1 if is_regression else len(class_to_idx.items()) 
-        model_state_dict = model_state['model_state_dict']
+        model_name = model_state["model_name"]
+        is_regression = model_state["is_regression"]
+        class_to_idx = model_state["class_to_idx"]
+        num_classes = 1 if is_regression else len(class_to_idx.items())
+        model_state_dict = model_state["model_state_dict"]
         model_cls = model_mapping[model_name]
         model = model_cls(num_classes=num_classes, class_to_idx=class_to_idx)
-        model.load_state_dict(model_state_dict)  
+        model.load_state_dict(model_state_dict)
 
         return model, class_to_idx, is_regression
 
@@ -135,25 +138,23 @@ class ModelInterface:
             batch_outputs = model(image_batch)
             batch_classes, batch_values = model.get_class_and_value(batch_outputs)
 
-        return batch_classes, batch_values      
-
+        return batch_classes, batch_values
 
     def batch_classifications(self, img_data_raw):
         # road type
-        model, _, _ = self.load_model(model=self.models.get('road_type'))
+        model, _, _ = self.load_model(model=self.models.get("road_type"))
         data = self.preprocessing(img_data_raw, self.transform_road_type)
         road_pred_classes, road_pred_values = self.predict(model, data)
         road_pred_values = [round(value, 5) for value in road_pred_values]
 
         # surface type
-        model, _, _ = self.load_model(model=self.models.get('surface_type'))
+        model, _, _ = self.load_model(model=self.models.get("surface_type"))
         data = self.preprocessing(img_data_raw, self.transform_surface)
         surface_pred_classes, surface_pred_values = self.predict(model, data)
         surface_pred_values = [round(value, 5) for value in surface_pred_values]
 
-
         # surface quality
-        sub_models = self.models.get('surface_quality')
+        sub_models = self.models.get("surface_quality")
 
         surface_indices = {}
         for i, surface_type in enumerate(surface_pred_classes):
@@ -182,8 +183,10 @@ class ModelInterface:
             surface_prob = surface_pred_values[i]
             quality_value = quality_pred_values[i]
 
-            final_results.append([road, road_prob, surface, surface_prob, quality_value])
-        
+            final_results.append(
+                [road, road_prob, surface, surface_prob, quality_value]
+            )
+
         return final_results
 
 
@@ -256,6 +259,7 @@ class CustomEfficientNetV2SLinear(nn.Module):
 
     def get_optimizer_layers(self):
         return self.classifier
+
 
 model_mapping = {
     const.EFFNET_LINEAR: CustomEfficientNetV2SLinear,

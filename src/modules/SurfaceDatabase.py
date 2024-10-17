@@ -36,7 +36,6 @@ class SurfaceDatabase:
     def __repr__(self):
         return f"Database(name={self.dbname}, tables={self.get_table_names()}, input_road_network={self.pbf_path})"
 
-
     def setup_database(self, pbf_path, alt_road_network=None):
         """
         Setup the database with the provided pbf file
@@ -52,8 +51,14 @@ class SurfaceDatabase:
             logging.info(
                 "setup database. Depending on the pbf_file size this might take a while"
             )
-            osmosis_scheme_file = Path(os.path.dirname(__file__)).parent / "pgsnapshot_schema_0.6.sql"
-            subprocess.run(f"createdb -h {self.dbhost} -U {self.dbhost} {self.dbname}", shell=True, executable="/bin/bash")
+            osmosis_scheme_file = (
+                Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
+            )
+            subprocess.run(
+                f"createdb -h {self.dbhost} {self.dbname} -U {self.dbuser}",
+                shell=True,
+                executable="/bin/bash",
+            )
             subprocess.run(
                 f"psql  -d {self.dbname} -c 'CREATE EXTENSION postgis;'",
                 shell=True,
@@ -70,7 +75,7 @@ class SurfaceDatabase:
                 executable="/bin/bash",
             )
             subprocess.run(
-                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname}""",
+                f"""osmosis --read-pbf {pbf_path} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser} password={self.dbpassword}""",
                 shell=True,
                 executable="/bin/bash",
             )
@@ -91,7 +96,7 @@ class SurfaceDatabase:
             password=self.dbpassword,
         )
 
-    def execute_sql_query(self, query, params, is_file=True):
+    def execute_sql_query(self, query, params, is_file=True, get_response=False):
         """Execute a sql query
 
         Args:
@@ -107,9 +112,13 @@ class SurfaceDatabase:
                 query = file.read()
         with conn.cursor(cursor_factory=DictCursor) as cursor:
             cursor.execute(sql.SQL(query.format(**params)))
+            if get_response:
+                res = cursor.fetchall()
             conn.commit()
 
         conn.close()
+        if get_response:
+            return res
 
     def execute_many_sql_query(self, query, value_list, params={}, is_file=True):
         conn = self.create_dbconnection()
@@ -123,16 +132,10 @@ class SurfaceDatabase:
             conn.commit()
         conn.close()
 
-
-    # TODO: fix function
     def table_exists(self, table_name):
-        query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = {table_name});"
-
-        try:
-            self.execute_sql_query(query, {"table_name": table_name}, is_file=False)
-            return True
-        except Exception:
-            return False
+        query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{table_name}');"
+        res = self.execute_sql_query(query, {"table_name": table_name}, is_file=False, get_response=True)
+        return res[0][0]
 
     def table_to_shapefile(self, table_name, output_file):
         """Write a database geodata table to a shapefile
@@ -163,5 +166,19 @@ class SurfaceDatabase:
         columns = ", ".join(header)
         placeholders = ", ".join(["%s"] * len(header))
         flattened_rows = [tuple(row) for row in rows]
-        query = f'INSERT INTO {table_name} ({columns}) VALUES ({placeholders});'
+        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders});"
         self.execute_many_sql_query(query, flattened_rows, is_file=False)
+
+
+    def remove_aoi_tables(self, aoi_name):
+        self.execute_sql_query(
+                f"""DROP TABLE IF EXISTS {aoi_name}_eval_groups,
+                                         {aoi_name}_group_predictions, 
+                                         {aoi_name}_partitions,
+                                         {aoi_name}_segmented_ways,
+                                         {aoi_name}_way_selection,
+                                         {aoi_name}_img_metadata,
+                                         {aoi_name}_img_classifications,
+                                         {aoi_name}_img_selection;
+                """
+            , {}, is_file=False)
