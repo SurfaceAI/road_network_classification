@@ -83,11 +83,7 @@ class SurfaceDatabase:
             except Exception as e:
 
                 # drop incorrectly initialized database
-                subprocess.run(
-                    f"dropdb {self.dbname} -h {self.dbhost} -p {self.dbport} -U {self.dbuser}",
-                    shell=True,
-                    executable="/bin/bash",
-                )
+                self.execute_sql_query(f'DROP DATABASE "{self.dbname}"', is_file=False, postgres_default=True, set_isolation_level=True)
                 logging.error(f"Error setting up database.")
                 raise e
             logging.info("Database setup complete.")
@@ -206,7 +202,7 @@ class SurfaceDatabase:
             shell=True,
             executable="/bin/bash",
         )
-        logging.info(f"table {table_name} writtena as shp file to {output_file}")
+        logging.info(f"Output written as shapefile to {output_file}.")
 
     def img_ids_from_dbtable(self, db_table):
         conn = self._create_dbconnection()
