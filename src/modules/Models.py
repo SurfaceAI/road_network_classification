@@ -5,6 +5,7 @@ import sys
 from functools import partial
 from pathlib import Path
 
+from huggingface_hub import hf_hub_download
 import torch
 from torch import Tensor, nn
 from torchvision import models, transforms
@@ -33,6 +34,7 @@ class ModelInterface:
         self.model_root = config.get("model_root")
         self.models = config.get("models")
         self.batch_size = config.get("batch_size")
+        self.hf_model_repo = config.get("hf_model_repo")
 
     @staticmethod
     def custom_crop(img, crop_style=None):
@@ -105,69 +107,50 @@ class ModelInterface:
 
     def load_model(self, model):
         model_path = Path(self.model_root) / model
+        # load model data from hugging face if not locally available
+        if not os.path.exists(model_path):
+            print(
+                f"Model file not found at {model_path}. Downloading from Hugging Face..."
+            )
+            model_path_new = hf_hub_download(
+                repo_id=self.hf_model_repo, filename=model, local_dir=self.model_root
+            )
+            print(f"Model file downloaded to {model_path_new}.")
         model_state = torch.load(model_path, map_location=self.device)
-        model_cls = model_mapping[model_state["config"]["model"]]
-        is_regression = model_state["config"]["is_regression"]
-        valid_dataset = model_state["dataset"]
+        model_name = model_state["model_name"]
+        is_regression = model_state["is_regression"]
+        class_to_idx = model_state["class_to_idx"]
+        num_classes = 1 if is_regression else len(class_to_idx.items())
+        model_state_dict = model_state["model_state_dict"]
+        model_cls = model_mapping[model_name]
+        model = model_cls(num_classes=num_classes, class_to_idx=class_to_idx)
+        model.load_state_dict(model_state_dict)
 
-        if is_regression:
-            class_to_idx = valid_dataset.get("class_to_idx")
-            classes = {str(i): cls for cls, i in class_to_idx.items()}
-            num_classes = 1
-        else:
-            classes = valid_dataset.get("classes")
-            num_classes = len(classes)
-        model = model_cls(num_classes)
-        model.load_state_dict(model_state["model_state_dict"])
+        return model, class_to_idx, is_regression
 
-        return model, classes, is_regression
-
-    def predict(self, model, data, is_regression, classes):
+    def predict(self, model, data):
         model.to(self.device)
         model.eval()
 
         image_batch = data.to(self.device)
 
         with torch.no_grad():
-
             batch_outputs = model(image_batch)
-            if is_regression:
-                batch_outputs = batch_outputs.flatten()
-                batch_classes = [
-                    "outside"
-                    if str(pred.item()) not in classes.keys()
-                    else classes[str(pred.item())]
-                    for pred in batch_outputs.round().int()
-                ]
-                batch_values = [pred.item() for pred in batch_outputs]
-            else:
-                batch_outputs = model.get_class_probabilies(batch_outputs)
-                batch_classes = [
-                    classes[idx.item()] for idx in torch.argmax(batch_outputs, dim=1)
-                ]
-                batch_values = [pred.item() for pred in batch_outputs.max(dim=1).values]
+            batch_classes, batch_values = model.get_class_and_value(batch_outputs)
 
         return batch_classes, batch_values
 
     def batch_classifications(self, img_data_raw):
         # road type
-        model, classes, is_regression = self.load_model(
-            model=self.models.get("road_type")
-        )
+        model, _, _ = self.load_model(model=self.models.get("road_type"))
         data = self.preprocessing(img_data_raw, self.transform_road_type)
-        road_pred_classes, road_pred_values = self.predict(
-            model, data, is_regression, classes
-        )
+        road_pred_classes, road_pred_values = self.predict(model, data)
         road_pred_values = [round(value, 5) for value in road_pred_values]
 
         # surface type
-        model, classes, is_regression = self.load_model(
-            model=self.models.get("surface_type")
-        )
+        model, _, _ = self.load_model(model=self.models.get("surface_type"))
         data = self.preprocessing(img_data_raw, self.transform_surface)
-        surface_pred_classes, surface_pred_values = self.predict(
-            model, data, is_regression, classes
-        )
+        surface_pred_classes, surface_pred_values = self.predict(model, data)
         surface_pred_values = [round(value, 5) for value in surface_pred_values]
 
         # surface quality
@@ -183,9 +166,9 @@ class ModelInterface:
         for surface_type, indices in surface_indices.items():
             sub_model = sub_models.get(surface_type)
             if sub_model is not None:
-                model, classes, is_regression = self.load_model(model=sub_model)
+                model, _, _ = self.load_model(model=sub_model)
                 sub_data = data[indices]
-                _, pred_values = self.predict(model, sub_data, is_regression, classes)
+                _, pred_values = self.predict(model, sub_data)
                 pred_values = [round(value, 5) for value in pred_values]
 
                 for i, idx in enumerate(indices):
@@ -208,7 +191,7 @@ class ModelInterface:
 
 
 class CustomEfficientNetV2SLinear(nn.Module):
-    def __init__(self, num_classes, avg_pool=1):
+    def __init__(self, num_classes, class_to_idx={}, avg_pool=1):
         super(CustomEfficientNetV2SLinear, self).__init__()
 
         model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
@@ -222,12 +205,47 @@ class CustomEfficientNetV2SLinear(nn.Module):
         self.classifier = model.classifier
         if num_classes == 1:
             self.criterion = nn.MSELoss
+            self.is_regression = True
         else:
             self.criterion = nn.CrossEntropyLoss
+            self.is_regression = False
+        self.class_to_idx = class_to_idx
+        self.idx_to_class = {str(i): cls for cls, i in class_to_idx.items()}
 
-    @staticmethod
-    def get_class_probabilies(x):
-        return nn.functional.softmax(x, dim=1)
+    def get_class_probabilies(self, x):
+        if self.is_regression:
+            x = x.flatten()
+        else:
+            x = nn.functional.softmax(x, dim=1)
+        return x
+
+    def get_class_and_value(self, x):
+        x = self.get_class_probabilies(x)
+        if self.is_regression:
+            idx = [pred.item() for pred in x.round().int()]
+            if len(self.idx_to_class.items()) > 0:
+                cls = [
+                    self.idx_to_class[
+                        str(
+                            min(
+                                max(i, min(list(self.class_to_idx.values()))),
+                                max(list(self.class_to_idx.values())),
+                            )
+                        )
+                    ]
+                    for i in idx
+                ]
+            else:
+                cls = idx
+            val = [pred.item() for pred in x]
+        else:
+            idx = [pred.item() for pred in torch.argmax(x, dim=1)]
+            if len(self.idx_to_class.items()) > 0:
+                cls = [self.idx_to_class[str(i)] for i in idx]
+            else:
+                cls = idx
+            val = [pred.item() for pred in x.max(dim=1).values]
+        return cls, val
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.features(x)

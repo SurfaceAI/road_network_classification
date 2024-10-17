@@ -1,6 +1,6 @@
 src/lndw.*
 src/temp.*
-src/models
+models
 data
 data/*
 .DS_Store
