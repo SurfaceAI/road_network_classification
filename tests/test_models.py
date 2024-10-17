@@ -14,7 +14,7 @@ def model_interface():
     # Set up any necessary objects or state before each test
     return ModelInterface(
         dict(
-            model_root="/Users/alexandra/Nextcloud-HTW/SHARED/SurfaceAI/trained_models",
+            model_root="models",
             hf_model_repo = "SurfaceAI/models",
             models={
                 "surface_type": "v1/surface_type_v1.pt",

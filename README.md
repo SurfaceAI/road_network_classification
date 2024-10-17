@@ -14,33 +14,41 @@ Find the [paper](https://arxiv.org/abs/2409.18922) of this publication here.
 
 ### Prerequisites
 
-- To setup the database, requires prior installation of `postgresql`, `postgis`, `osmosis` (E.g., with `brew install` for MacOS and `apt install` for Linux)
+-  A Postgis database is used for faster geocomputations. This requires prior installation of `postgresql`, `postgis`, `osmosis` (E.g., with `brew install` for MacOS and `apt install` for Linux)
 
-- Download of road network. If OSM is used, as `.pbf` file. Speficy pbf file location in `configs/00_global_config.json` (`pbf_path`).
-- Get the model weights from TODO and store them in the subfolder `models` or specify the respective folder location in `configs/00_global_config.json` (`model_root`).
+- Create a `02_credentials.json` file according to `02_credentials_example.json`.
+You need to provide a database user name and password with which you may access your Posgres databases (this may need to be configured on your server). You need to ensure that your database user has `superuser`rights to create extensions (postgis and hstore).
+- A Mapillary access token is required and needs to be provided in the `02_credentials.json` file. You can obtain a free token as described [here](https://help.mapillary.com/hc/en-us/articles/360010234680-Accessing-imagery-and-data-through-the-Mapillary-API#h_e18c3f92-8b3c-4d26-8a1b-a880bde3a645).
 
 ### User Input
 
 #### Quick Start (TL;DR)
 
-Use the `configs/01_area_of_interest_example.json` as a template and specify attributes `name` (str), `minLon`, `minLat`, `maxLon`, `maxLat` of the bounding box of your area of interest.
+Use the `configs/01_1_area_of_interest_config_example.json` as a template for `my_config_file.json` and specify attributes `name` (str), `minLon`, `minLat`, `maxLon`, `maxLat` of the bounding box of your area of interest.
+Limit the OSM road network (global config parameter `osm_region`) to the required scope ("germany" takes approx. 30GB database storage).
 
-Execute the pipeline with `python src/main.py -c 01_area_of_interest_example` 
+Execute the pipeline with `python src/main.py -c my_config_file` 
 
-The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
+The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
 
 #### Details
 
-The configuration files are constructed to provide one global configuration file that sets parameters regardless of the specific area of interest. For each area of interest, defined by its geographical bounding box, another specific config file is created. This allows you to speficy multiple area of interest. Within the specific configuration file, you may overwrite any global parameter. The `00_global_config.json` is always considered, while you specify the specific area of interest config file when starting the program: `python src/main.py -c my_config_file` 
+The configuration files are constructed to provide one global configuration file that sets parameters regardless of the specific *area of interest*. For each area of interest, defined by its geographical bounding box, a dedicated config file is used. 
+This allows you to specify multiple areas of interest. Within the specific configuration file, you may overwrite any global parameter. 
+The `00_global_config.json` is always considered, while you provide the area of interest config file name when starting the program (without `.json` file ending): `python src/main.py -c my_config_file` 
 
-
-- Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the region of interest in `configs/your_config.json` file and provide a `name`. See the example config file `configs/01_1_area_of_interest_config_example.json`.
-- If you want to use a different road network than OSM, set the parameter `pbf_path=None` within the config.json file and set `road_network_path` to your Shapefile source file location. The dataset is expected to have a `geom` column and a `road_type` column (with values from: `road`, `path`, `sidewalk`, `cycleway`, `bike_lane`). If no road type value is available, a column with `null` values will be initialized automatically. For each road with value `null` classifications for all potential road types will be returned (according to an road type image classification model). You may have an identifier column in your custom road network that you wish to maintain in the output. This can be specified via the config parameter `additional_id_column`.
+- Specify region for the underlying OSM road network with `osm_region` suitable for your area(s) of interest. Names as available from Geofabrik (e.g., "germany", "berlin", "hessen"). E.g., you can specify "germany" if you have mulitple municipalities all over Germany as areas of interest. If you are only interested in a certain region, specify a smaller region, as the initialization runs faster and requires less storage.
+- If you already have pbf files downloaded and stored at a different location, you can change the `pbf_folder`in the global config.
+- Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the area of interest in `configs/my_config_file.json` file and provide a `name`. See the example config file `configs/01_1_area_of_interest_config_example.json`.
+- If you want to use a different road network than OSM, set the parameter `osm_region=None` within the config file and set `road_network_path` to your Shapefile source file location. 
+The road network dataset is expected to have a `geom` column and a `road_type` column (with values from: `road`, `path`, `sidewalk`, `cycleway`, `bike_lane`). 
+If no road type value is available, a column with `null` values will be initialized automatically. For each road with value `null` classifications for all potential road types will be returned (according to an road type image classification model). 
+You may have an identifier column in your custom road network that you wish to maintain in the output. This can be specified via the config parameter `additional_id_column`.
 See the example `configs/01_2_custom_road_network_area_of_interest_config_example.json`
 
 - In `00_global_config.json` a set of global config parameters that are all set to defaults do not require change (but may be adjusted)
 They consist of the following: 
-    - Database keys for `dbname`, `dbuser`, `dbhost` and `dbpassword` as specified in `02_credentials.json`
+    - Database keys for `dbname`, as specified in `02_credentials.json`
     - Mapillary API specifications: 
         - `img_size`indicates the size of the Mapillary image to download, given by the image width. Options according to the Mapillary API: `thumb_original_url`, `thumb_2048_url`, `thumb_1024_url`, `thumb_256_url`
         - `parrallel`(bool), whether image download should be parallelized
@@ -89,6 +97,14 @@ Start the pipeline by running:
 ```
 
 The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
+
+If database to create further area of interest datasets is no longer needed, remove database with (OSM) road network:
+
+```bash
+dropdb YOUR_DBNAME
+```
+
+(With default param from `00_global_config.json` `dropdb surfaceai`.)
 
 ## Implementation details
 

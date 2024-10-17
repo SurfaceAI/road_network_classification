@@ -1,7 +1,7 @@
 {
-    "pbf_path" : "data/germany-latest.osm.pbf",
-    
-    "dbname": "database",
+    "dbname": "surfaceai",
+    "pbf_folder" : "data/osm_pbf",
+    "osm_region" : "germany",
     
     "img_size": "thumb_1024_url",
     "parallel": true,
