@@ -224,8 +224,8 @@ class CustomEfficientNetV2SLinear(nn.Module):
                 cls = [
                     self.idx_to_class[
                         str(
-                            max(
-                                min(i, min(list(self.class_to_idx.values()))),
+                            min(
+                                max(i, min(list(self.class_to_idx.values()))),
                                 max(list(self.class_to_idx.values())),
                             )
                         )
