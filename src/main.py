@@ -17,7 +17,7 @@ def process_area_of_interest(db, aoi, mi, md):
     aoi.get_and_write_img_metadata(mi, db)
 
     logging.info("create road segments in bounding box")
-    query_path = const.SQL_WAY_SELECTION if db.pbf_path else const.SQL_WAY_SELECTION_CUSTOM
+    query_path = const.SQL_WAY_SELECTION if db.osm_region else const.SQL_WAY_SELECTION_CUSTOM
     db.execute_sql_query(query_path, aoi.query_params)
 
     logging.info(f"cut lines into subsegments of length {aoi.segment_length}")
@@ -31,7 +31,7 @@ def process_area_of_interest(db, aoi, mi, md):
     aoi.classify_images(mapillary_interface, surface_database, model_interface)
 
     db.execute_sql_query(const.SQL_PREPARE_PARTITIONS, aoi.query_params)
-    if db.pbf_path is not None: # is OSM file?
+    if db.osm_region is not None: # is OSM file?
         logging.info("create partitions for each road type of a road segment")
         db.execute_sql_query(
             const.SQL_SEPARATE_ROAD_TYPES, aoi.query_params
@@ -80,15 +80,14 @@ if __name__ == "__main__":
     area_of_interest = aoi.AreaOfInterest(cg)
     model_interface = md.ModelInterface(cg)
 
-    # TODO: only append root_path if pbf_path is a relative path
-    #cg["pbf_path"] = root_path / cg.get("pbf_path")
     surface_database = sd.SurfaceDatabase(
-        credentials[cg.get("dbname")],
-        credentials["user"],
-        credentials["password"],
-        credentials["host"],
-        credentials["port"],
-        cg.get("pbf_path", None),
+        cg.get("dbname"),
+        credentials.get("user"),
+        credentials.get("password"),
+        credentials.get("host", None),
+        credentials.get("port", None),
+        cg.get("pbf_folder", None),
+        cg.get("osm_region", None),
         cg.get("road_network_path", None),
         cg.get("sql_custom_way_prep", None)
     )
@@ -105,4 +104,4 @@ if __name__ == "__main__":
         f"{area_of_interest.name}_group_predictions", output_file
     )
 
-    # surface_database.remove_aoi_tables(area_of_interest.name)
+    # surface_database.remove_temp_tables(area_of_interest.name)

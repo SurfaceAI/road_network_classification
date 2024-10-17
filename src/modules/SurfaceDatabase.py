@@ -6,9 +6,11 @@ from pathlib import Path
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import DictCursor, execute_batch
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT 
 
 import fnmatch
 from pydriosm.downloader import GeofabrikDownloader
+#from pydriosm.ios import PostgresOSM
 
 class SurfaceDatabase:
     """Database class to handle database setup and data processing"""
@@ -44,43 +46,37 @@ class SurfaceDatabase:
     def __repr__(self):
         return f"Database(name={self.dbname}, tables={self.get_table_names()}, input_road_network={self.osm_region})"
 
+    def _database_exists(self):
+        query = f"SELECT 1 FROM pg_database WHERE datname = '{self.dbname}'"
+        res = self.execute_sql_query(query, is_file=False, get_response= True, postgres_default=True)
+        return len(res) > 0
+        
     def setup_database(self):
         """
         Setup the database with the provided pbf file
         """
-        res = subprocess.run(
-            r"psql -lqt | cut -d \| -f 1 | grep -w " + self.dbname,
-            shell=True,
-            executable="/bin/bash",
-        )
-        if res.returncode == 0:
-            logging.info("database already exists. Skip DB creation step.")
+
+        if self._database_exists():
+            logging.info(f"Database {self.dbname} already exists. Skip DB creation step.")
         else:
             logging.info(
-                "Setup database"
+                "Setup database."
             )
             try:
-                subprocess.run(
-                    f"createdb {self.dbname} -h {self.dbhost} -p {self.dbport} -U {self.dbuser}",
-                    shell=True,
-                    executable="/bin/bash",
-                )
-                subprocess.run(
-                    f"psql  -d {self.dbname} -c 'CREATE EXTENSION postgis;'",
-                    shell=True,
-                    executable="/bin/bash",
-                )
+                self.execute_sql_query(f'CREATE DATABASE "{self.dbname}"', is_file=False, postgres_default=True, set_isolation_level=True)
+                self.execute_sql_query('CREATE EXTENSION postgis;', is_file=False)
                 if self.osm_region:
                     self._init_osm_data()
 
                 elif self.road_network_path:
+                    # TODO: refine subprocess call
                     subprocess.run(
                         f'ogr2ogr -f "PostgreSQL" PG:"dbname={self.dbname} user={self.dbuser} password={self.dbpassword} host={self.dbhost} port={self.dbport}" "{self.road_network_path}" -nln ways -overwrite',
                         shell=True,
                         executable="/bin/bash",
                     )
                     logging.info(f"Road network added to database from {self.road_network_path}")
-                    self.execute_sql_query(self.sql_custom_way_prep, {})
+                    self.execute_sql_query(self.sql_custom_way_prep)
 
                 else:
                     logging.error("No road network provided")
@@ -94,34 +90,26 @@ class SurfaceDatabase:
                 )
                 logging.error(f"Error setting up database.")
                 raise e
-            logging.info("database setup complete")
+            logging.info("Database setup complete.")
 
     def _init_osm_data(self):
-        subprocess.run(
-                        f"psql  -d {self.dbname} -c 'CREATE EXTENSION hstore;'",
-                        shell=True,
-                        executable="/bin/bash",
-                    )
-        osmosis_scheme_file = (
-                        Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
-                    )
-        subprocess.run(
-                        f"psql -d {self.dbname} -f {osmosis_scheme_file}",
-                        shell=True,
-                        executable="/bin/bash",
-                    )
+        self.execute_sql_query('CREATE EXTENSION hstore;', is_file=False)
+
+        osmosis_scheme_file = Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
+        self.execute_sql_query(osmosis_scheme_file)
 
         if not os.path.exists(self.pbf_folder):
             os.makedirs(self.pbf_folder)
-            pbf_file = False
+            is_download = True
         else:
             for root,_,files in os.walk(self.pbf_folder):
                 pbf_files = fnmatch.filter(files, f"{self.osm_region}*.osm.pbf") 
                 if len(pbf_files) > 0:
                     pbf_file = Path(root) / pbf_files[0]
+                    is_download = False
                 else: 
-                    pbf_file = False
-        if not pbf_file:
+                    is_download = True
+        if is_download:
             logging.info(f"PBF file for {self.osm_region} does not exist. It will be downloaded from Geofabrik.")
             gfd = GeofabrikDownloader()
             pbf_file = gfd.download_osm_data(self.osm_region, "pbf", 
@@ -131,38 +119,50 @@ class SurfaceDatabase:
                                             verbose=True)
             logging.info(f"PBF file downloaded to {pbf_file}")
         
-        logging.info(f"Depending on the pbf file size, loading data into the DB might take a while.")
+        logging.info(f"******LOAD OSM DATA FROM {pbf_file} TO DATABASE******")
+        logging.info(f"Depending on the file size, this may take a while.")
+
+        # TODO: use pydriosm instead of subprocess osmosis
+        #  PostgresOSM(host=self.dbhost, port=self.dbport, username=self.dbuser, password=self.dbpassword, database_name=self.dbname, data_dir=pbf_file)
         subprocess.run(
-            f"""osmosis --read-pbf {pbf_file} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser} password={self.dbpassword}""",
+            f"""osmosis --read-pbf {pbf_file} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser}""",
             shell=True,
             executable="/bin/bash",
         )
-        # TODO: rm downloaded pbf after loading to db?
+        if is_download:
+            logging.info(f"Remove downloaded pbf file {pbf_file}.")
+            os.remove(pbf_file)
 
-    def _create_dbconnection(self):
+    def _create_dbconnection(self, postgres_default=False):
         """Create a connection to the database
 
         Returns:
             psycopg2.connection: a database connection
         """
+        dbname = 'postgres' if postgres_default else self.dbname
         return psycopg2.connect(
-            dbname=self.dbname,
+            dbname=dbname,
             user=self.dbuser,
             host=self.dbhost,
             port=self.dbport,
             password=self.dbpassword,
         )
 
-    def execute_sql_query(self, query, params, is_file=True, get_response=False):
+    def execute_sql_query(self, query, params={}, is_file=True, postgres_default= False, get_response=False, set_isolation_level=False):
         """Execute a sql query
 
         Args:
             query (str): sql query to execute
             params (dict): parameters to pass to the query
             is_file (bool, optional): If sql query parameter is path to a file, then true. If the query is the query String, then False. Defaults to True.
+            postgres_default (bool, optional): If the query is to be executed on the default postgres database. Defaults to False.
+            get_response (bool, optional): If the response is to be fetched. Defaults to False.
+            set_isolation_level (bool, optional): If the isolation level is to be set. Defaults to False.
         """
         # create table with sample data points
-        conn = self._create_dbconnection()
+        conn = self._create_dbconnection(postgres_default)
+        if set_isolation_level:
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 
         if is_file:
             with open(query, "r") as file:
@@ -234,4 +234,4 @@ class SurfaceDatabase:
                                          {aoi_name}_way_selection,
                                          {aoi_name}_img_selection;
                 """
-            , {}, is_file=False)
+            , is_file=False)
