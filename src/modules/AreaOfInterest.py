@@ -50,13 +50,9 @@ class AreaOfInterest:
         self.proj_crs = config.get("proj_crs")
 
         # img variables
-        self.img_size = config.get("img_size")
-        self.userid = (
-            False if "userid" not in config.keys() else config.get("userid")
-        )  # only limited to a specific user id? TODO: implement
-        self.use_pano = (
-            False if "use_pano" not in config.keys() else config.get("use_pano")
-        )  # exclude panoramic images
+        self.img_size = config.get("img_size", "thumb_1024_url")
+        self.userid =  config.get("userid", False) # only limited to a specific user id? TODO: implement
+        self.use_pano =  config.get("use_pano", False) # exclude panoramic images # TODO: implement inclusion
         self.dist_from_road = config.get("dist_from_road")
 
         # road network variables
@@ -65,12 +61,7 @@ class AreaOfInterest:
         self.segments_per_group = config.get("segments_per_group", None)
 
         # customizations
-        self.additional_id_column = (
-            None
-            if "additional_id_column" not in config.keys()
-            else config.get("additional_id_column")
-        )
-
+        self.additional_id_column = config.get("additional_id_column", None)
         self.query_params = self._get_query_params()
 
     def _get_query_params(self):

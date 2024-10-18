@@ -1,7 +1,9 @@
 {
-    "dbname": "surfaceai",
     "pbf_folder" : "data/osm_pbf",
     "osm_region" : "germany",
+    "dbname": "surfaceai",
+    "dbhost" : "localhost",
+    "dbport": 5432,
     
     "img_size": "thumb_1024_url",
     "parallel": true,

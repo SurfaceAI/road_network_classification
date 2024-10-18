@@ -22,15 +22,15 @@ import constants as const
 class MapillaryInterface:
     """Interface for Mapillary API to query image metadata and download images."""
 
-    def __init__(self, mapillary_token, parallel, parallel_batch_size):
+    def __init__(self, mapillary_token, parallel=True, parallel_batch_size=10):
         """Initializes a MapillaryInterface object.
                     Zoom level is defined in constants.py.
 
 
         Args:
             mapillary_token (str): Mapillary API token
-            parallel (bool): Download images in parallel
-            parallel_batch_size (int): Number of images to download in parallel
+            parallel (bool, optional): Download images in parallel. Defaults to False.
+            parallel_batch_size (int, optional): Number of images to download in parallel. Defaults to 10.
         """
         self.token = mapillary_token
         self.parallel = parallel

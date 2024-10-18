@@ -16,7 +16,7 @@ class SurfaceDatabase:
     """Database class to handle database setup and data processing"""
 
     def __init__(
-        self, dbname, dbuser, dbpassword, dbhost, dbport, pbf_folder=None, osm_region=None, 
+        self, dbname, dbuser, dbpassword="", dbhost="localhost", dbport=5432, pbf_folder=None, osm_region=None, 
         road_network_path=None, sql_custom_way_prep=None
     ):
         """Initializes the database class
@@ -24,18 +24,19 @@ class SurfaceDatabase:
         Args:
             dbname (str): name of the database
             dbuser (str): name of the database user
-            dbpassword (str): database password
-            dbhost (str): database host
-            dbport (str): database port
+            dbpassword (str, optional): database password. Defaults to "".
+            dbhost (str, optional): database host. Defaults to "localhost".
+            dbport (str, optional): database port. Defaults to 5432.
             pbf_folder (str, optional): folder where OSM pbf files are stored
             osm_region (str, optional): path to the pbf file for the OSM road network. If provided, road_network_path is ignored. Defaults to None.
             road_network_path (str, optional): Alternative road network to OSM. If osm_region is None, required. Defaults to None.
+            sql_custom_way_prep (str, optional): SQL query to prepare the way table if a custom road network is provided. Defaults to None.
         """
         self.dbname = dbname
         self.dbuser = dbuser
         self.dbpassword = dbpassword
-        self.dbhost = dbhost if dbhost is not None else "localhost"
-        self.dbport = dbport if dbport is not None else 5432
+        self.dbhost = dbhost 
+        self.dbport = dbport 
         self.pbf_folder = pbf_folder
         self.osm_region = osm_region
         self.road_network_path = road_network_path
