@@ -120,8 +120,11 @@ class SurfaceDatabase:
 
         # TODO: use pydriosm instead of subprocess osmosis
         #  PostgresOSM(host=self.dbhost, port=self.dbport, username=self.dbuser, password=self.dbpassword, database_name=self.dbname, data_dir=pbf_file)
+        command = f"""osmosis --read-pbf {pbf_file} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser}"""
+        if self.dbpassword != "":
+            command += f"password={self.dbpassword}"
         subprocess.run(
-            f"""osmosis --read-pbf {pbf_file} --tf accept-ways 'highway=*' --used-node --tf reject-relations --log-progress --write-pgsql database={self.dbname} user={self.dbuser}""",
+            command,
             shell=True,
             executable="/bin/bash",
         )
