@@ -28,7 +28,7 @@ def process_area_of_interest(db, aoi, mi, md):
 
     ##### classify images
     logging.info("classify images")
-    aoi.classify_images(mapillary_interface, surface_database, model_interface)
+    aoi.classify_images(mi, db, md)
 
     db.execute_sql_query(const.SQL_PREPARE_PARTITIONS, aoi.query_params)
     if db.osm_region is not None: # is OSM file?
@@ -71,37 +71,34 @@ if __name__ == "__main__":
     with open(credentials_path, "r") as cred_file:
         credentials = json.load(cred_file)
 
-    mapillary_interface = mi.MapillaryInterface(
-        mapillary_token=credentials["mapillary_token"],
-        parallel=cg.get("parallel"),
-        parallel_batch_size=cg.get("parallel_batch_size"),
-    )
+    mi_params = {key: value for key, value in {**cg, **credentials}.items()if key in ["mapillary_token", "parallel", "parallel_batch_size"]}
+    mapillary_interface = mi.MapillaryInterface(**mi_params)
 
     area_of_interest = aoi.AreaOfInterest(cg)
     model_interface = md.ModelInterface(cg)
 
-    surface_database = sd.SurfaceDatabase(
-        cg.get("dbname"),
-        credentials.get("user"),
-        credentials.get("password"),
-        credentials.get("host", None),
-        credentials.get("port", None),
-        cg.get("pbf_folder", None),
-        cg.get("osm_region", None),
-        cg.get("road_network_path", None),
-        cg.get("sql_custom_way_prep", None)
-    )
+    # only pass on provided parameters - for missing values set defaults of SurfaceDatabase
+    sd_params = {key: value for key, value in {**cg, **credentials}.items() if key in 
+                 ["dbname", "dbuser", "dbpassword", "dbhost", "dbport", "pbf_folder", "osm_region", "road_network_path", "sql_custom_way_prep"]}
 
-    process_area_of_interest(
-        surface_database, area_of_interest, mapillary_interface, model_interface
-    )
+    surface_database = sd.SurfaceDatabase(**sd_params)
 
-    os.makedirs(root_path / "data", exist_ok=True)
+    # process_area_of_interest(
+    #     surface_database, area_of_interest, mapillary_interface, model_interface
+    # )
+
     # write results to shapefile
+    output_folder = root_path / "data" / "output"
+    os.makedirs(output_folder, exist_ok=True)
     run = f"_{area_of_interest.run}" if area_of_interest.run else ""
-    output_file = root_path / "data" / "output" / f"{area_of_interest.name}{run}_surfaceai.shp"
+    output_file = output_folder / f"{area_of_interest.name}{run}_surfaceai.shp"
+    logging.info(f"Write results to shapefile {output_file}.")
+
     surface_database.table_to_shapefile(
         f"{area_of_interest.name}_group_predictions", output_file
     )
 
-    # surface_database.remove_temp_tables(area_of_interest.name)
+    output_file = output_folder / f"{area_of_interest.name}{run}_img_metadata.shp"
+    area_of_interest.imgs_to_shapefile(surface_database, output_file)
+
+    surface_database.remove_temp_tables(area_of_interest.name)

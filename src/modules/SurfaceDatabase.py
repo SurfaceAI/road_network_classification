@@ -206,7 +206,6 @@ class SurfaceDatabase:
             shell=True,
             executable="/bin/bash",
         )
-        logging.info(f"Output written as shapefile to {output_file}.")
 
     def img_ids_from_dbtable(self, db_table):
         conn = self._create_dbconnection()

@@ -169,3 +169,17 @@ class AreaOfInterest:
             # print(f"db insert {time.time() - start}")
 
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)
+
+
+    def imgs_to_shapefile(self, db, output_path):
+        query = """
+        DROP TABLE IF EXISTS temp_imgs;
+        SELECT meta.*, cl.road_type_pred, cl.road_type_prob, cl.type_pred, cl.type_class_prob, cl.quality_pred
+		INTO TABLE temp_imgs
+	    FROM dresden_small_img_metadata meta 
+	    JOIN dresden_small_img_classifications cl 
+	    ON meta.img_id=cl.img_id;"""
+        db.execute_sql_query(query, is_file=False)
+        db.table_to_shapefile("temp_imgs", output_path)
+        db.execute_sql_query("DROP TABLE temp_imgs;", is_file=False)
+
