@@ -172,12 +172,12 @@ class AreaOfInterest:
 
 
     def imgs_to_shapefile(self, db, output_path):
-        query = """
+        query = f"""
         DROP TABLE IF EXISTS temp_imgs;
         SELECT meta.*, cl.road_type_pred, cl.road_type_prob, cl.type_pred, cl.type_class_prob, cl.quality_pred
 		INTO TABLE temp_imgs
-	    FROM dresden_small_img_metadata meta 
-	    JOIN dresden_small_img_classifications cl 
+	    FROM {self.name}_img_metadata meta 
+	    JOIN {self.name}_img_classifications cl 
 	    ON meta.img_id=cl.img_id;"""
         db.execute_sql_query(query, is_file=False)
         db.table_to_shapefile("temp_imgs", output_path)
