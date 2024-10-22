@@ -188,7 +188,7 @@ class AreaOfInterest:
         
         query = f"""
         DROP TABLE IF EXISTS temp_rn;
-        SELECT gp.*, ws.surface, ws.smoothness
+        SELECT gp.*, ws.surface_clean, ws.smoothness
 		INTO TABLE temp_rn
 	    FROM {self.name}_group_predictions gp 
 	    JOIN {self.name}_way_selection ws 
