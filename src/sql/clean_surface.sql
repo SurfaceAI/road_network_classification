@@ -18,6 +18,6 @@ SET surface_clean = CASE
                         WHEN surface = 'concrete:plates' THEN 'concrete'
                         when surface = 'wood' then 'other'
                         when surface = 'grass_paver' then 'other'
-                        ELSE surface
+                        ELSE null
                     END;
                    
