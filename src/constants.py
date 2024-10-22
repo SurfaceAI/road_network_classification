@@ -20,6 +20,7 @@ SQL_RENAME_ROAD_TYPE_PRED = SQL_FOLDER / "rename_road_type_pred.sql"
 SQL_AGGREGATE_ON_ROADS = SQL_FOLDER / "aggregation_alg{}.sql"
 SQL_SEPARATE_ROAD_TYPES = SQL_FOLDER / "separate_road_types.sql"
 SQL_SEPARATE_NULL_ROAD_TYPES = SQL_FOLDER / "separate_null_road_types.sql"
+SQL_CLEAN_SURFACE = SQL_FOLDER / "clean_surface.sql"
 
 # Mapilary settings
 MAPILLARY_TILE_URL = "https://tiles.mapillary.com/maps/vtp/{}/2/{}/{}/{}"

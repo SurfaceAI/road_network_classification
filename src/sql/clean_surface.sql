@@ -1,13 +1,7 @@
-alter table sample_way_geometry drop column osm_surface_clean;
+alter table {name}_way_selection add column if not exists surface_clean VARCHAR;
 
-alter table sample_way_geometry add column if not exists osm_surface_clean VARCHAR;
-
-
-update sample_way_geometry set osm_surface_clean = surface;
-
-
-UPDATE sample_way_geometry
-SET osm_surface_clean = CASE 
+UPDATE {name}_way_selection
+SET surface_clean = CASE 
                         WHEN surface = 'compacted' THEN 'unpaved'
                         WHEN surface = 'gravel' THEN 'unpaved'
                         WHEN surface = 'ground' THEN 'unpaved'
@@ -27,5 +21,3 @@ SET osm_surface_clean = CASE
                         ELSE surface
                     END;
                    
-
-select osm_surface_clean, count(*) from sample_way_geometry swg group by osm_surface_clean;

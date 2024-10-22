@@ -137,7 +137,7 @@ class AreaOfInterest:
             existing_img_ids = db.img_ids_from_dbtable(f"{self.name}_img_classifications")
             logging.info(f"existing classified images: {len(existing_img_ids)}")
             img_ids = list(set(img_ids) - set(existing_img_ids))
-            logging.info(f"remaining new images to classify: {len(img_ids)}")
+        logging.info(f"Images to classify: {len(img_ids)}")
 
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
@@ -182,4 +182,19 @@ class AreaOfInterest:
         db.execute_sql_query(query, is_file=False)
         db.table_to_shapefile("temp_imgs", output_path)
         db.execute_sql_query("DROP TABLE temp_imgs;", is_file=False)
+
+    def road_network_with_osm_groundtruth(self, db, output_path):
+        db.execute_sql_query(const.SQL_CLEAN_SURFACE, self.query_params)
+        
+        query = f"""
+        DROP TABLE IF EXISTS temp_rn;
+        SELECT gp.*, ws.surface, ws.smoothness
+		INTO TABLE temp_rn
+	    FROM {self.name}_group_predictions gp 
+	    JOIN {self.name}_way_selection ws 
+	    ON gp.id=ws.id
+        WHERE part_id=1;"""
+        db.execute_sql_query(query, is_file=False)
+        db.table_to_shapefile("temp_rn", output_path)
+        db.execute_sql_query("DROP TABLE temp_rn;", is_file=False)
 
