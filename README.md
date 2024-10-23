@@ -33,22 +33,22 @@ The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
 
 #### Details
 
-The configuration files are constructed to provide one global configuration file that sets parameters regardless of the specific *area of interest*. For each area of interest, defined by its geographical bounding box, a dedicated config file is used. 
+The configuration files are constructed to provide one global configuration that sets parameters regardless of the specific *area of interest*. For each area of interest, defined by its geographical bounding box, a dedicated config file is used. 
 This allows you to specify multiple areas of interest. Within the specific configuration file, you may overwrite any global parameter. 
 The `00_global_config.json` is always considered, while you provide the area of interest config file name when starting the program (without `.json` file ending): `python src/main.py -c my_config_file` 
 
 - Specify region for the underlying OSM road network with `osm_region` suitable for your area(s) of interest. Names as available from Geofabrik (e.g., "germany", "berlin", "hessen"). E.g., you can specify "germany" if you have mulitple municipalities all over Germany as areas of interest. If you are only interested in a certain region, specify a smaller region, as the initialization runs faster and requires less storage.
-- If you already have pbf files downloaded and stored at a different location, you can change the `pbf_folder`in the global config.
+- If you already have pbf files downloaded and stored at a different location, you can change the `pbf_folder`in the global config. Otherwise, the file will be downloaded automatically from Geofabrik to `data/osm_pbf`
 - Specify the the bounding box (`minLon`, `minLat`, `maxLon`, `maxLat`) of the area of interest in `configs/my_config_file.json` file and provide a `name`. See the example config file `configs/01_1_area_of_interest_config_example.json`.
-- If you want to use a different road network than OSM, set the parameter `osm_region=None` within the config file and set `road_network_path` to your Shapefile source file location. 
-The road network dataset is expected to have a `geom` column and a `road_type` column (with values from: `road`, `path`, `sidewalk`, `cycleway`, `bike_lane`). 
-If no road type value is available, a column with `null` values will be initialized automatically. For each road with value `null` classifications for all potential road types will be returned (according to an road type image classification model). 
+- If you want to use a different road network than OSM, set the parameter `osm_region=None` and set `road_network_path` to your Shapefile source file location (either within the global config, if this is true for all area of interests, or only within the specific config file, if this is only true for a single area of interest. In the latter case, you also need to provide a new database name `dbname`, as the new road network requires a new database). 
+The custom road network dataset is expected to have a `geom` column and a `road_type` column (with values from: `road`, `path`, `sidewalk`, `cycleway`, `bike_lane`). 
+If no road type value is available, a column with `null` values will be initialized automatically. For `null` values all potential road types will be returned (i.e., every road will have an additional cycleway and sidewalk geometry). 
 You may have an identifier column in your custom road network that you wish to maintain in the output. This can be specified via the config parameter `additional_id_column`.
 See the example `configs/01_2_custom_road_network_area_of_interest_config_example.json`
 
-- In `00_global_config.json` a set of global config parameters that are all set to defaults do not require change (but may be adjusted)
+- In `00_global_config.json` global config parameters may be adjusted (however, reasonable defaults are set)
 They consist of the following: 
-    - Database keys for `dbname`, as specified in `02_credentials.json`
+    - Database name `dbname`
     - Mapillary API specifications: 
         - `img_size`indicates the size of the Mapillary image to download, given by the image width. Options according to the Mapillary API: `thumb_original_url`, `thumb_2048_url`, `thumb_1024_url`, `thumb_256_url`
         - `parrallel`(bool), whether image download should be parallelized
@@ -58,23 +58,25 @@ They consist of the following:
         - `dist_from_road`: maximum distance from road in CRS unit (usually meters) for an image to be assigned to the road,
         - `segment_length`: length of a subsegment for aggregation algorithm,
         - `min_road_length`: short roads, which are common in OSM, like driveways, can be excluded to reduce cluttering and noise. This parameter specifies the minimum road length to be included.
-        - `segments_per_group`: deprecated
+        - `segments_per_group`: The length of a classified road segement in number of subsegments. E.g., if `segment_length` = 20 meters and `segments_per_group` = 3, then the output will result in 3x20=60 meter road segments. If set to null, then the road segments are maintained as given in the input of the road network.
     - Classification model specific parameters:
         - `model_root`: path to root folder of models
-        - `models`(dict): required keys: `road_type`, `surface_type`, `surface_quality`(with sub keys `asphalt`, `concrete`, `paving_stones`, `sett`, `unpaved`). Each value indicates the pt. file of the respective weights 
+        - `models`(dict): required keys: `road_type`, `surface_type`, `surface_quality`(with sub keys `asphalt`, `concrete`, `paving_stones`, `sett`, `unpaved`). Each value indicates the pt. file locaiton of the respective model weights 
         - `gpu_kernel`: if more than one GPU kernel is available, the one to be used can be specified here
-        - `transform_surface` and `transform_road_type` (dict): with keys `resize`and `crop`specifying the transform operations conducted on images for these modelse
+        - `transform_surface` and `transform_road_type` (dict): with keys `resize`and `crop`specifying the transform operations conducted on images for these models
         - `batch_size`model batch size
 
-You can overwrite any paramter in the specific config. E.g., the `dist_to_road`shall be 10 meters for all area of interest, except one, then you can overwrite the parameter by setting `dist_to_road` within the specific config as well with the desired parameter.
+You can overwrite any parameter in the specific config. E.g., the `dist_to_road`shall be 10 meters for all area of interest, except one, then you can set `dist_to_road`=10 within the global config and overwrite the parameter for only a single area of interst by setting `dist_to_road`=20 within the specific config.
 
 ### Run SurfaceAI
 
 Using [`poetry`](https://python-poetry.org/) for dependency management, install poetry: 
 
+
 ```bash 
-    pipx install poetry
+    pip install pipx
 ```
+
 
 Create an environment using poetry
 
@@ -104,8 +106,6 @@ If database to create further area of interest datasets is no longer needed, rem
 dropdb YOUR_DBNAME
 ```
 
-(With default param from `00_global_config.json` `dropdb surfaceai`.)
-
 ## Implementation details
 
 ### Pipeline:
@@ -113,10 +113,9 @@ dropdb YOUR_DBNAME
 
 - setup Postgres database with PostGIS and osmosis extension
 - query all image metadata within the provided bounding box from Mapillary and write to database
-- create 20m subsegments of road segments within the bounding box (based on OSM if no other network is provided)
-- match images to closest road, max. 10m distance (may be adjusted in the `config`)
-- download all relevant images from Mapillary (depending on the number of images, this step may take a while)
-- classify all road scene, surface type and quality of images (currently, this step is not yet integrated in this pipeline)
+- create subsegments of road segments within the bounding box (based on OSM if no other network is provided)
+- match images to closest road distance 
+- download and classify all relevant images from Mapillary (depending on the number of images, this step may take a while)
 - aggregate single classifications to road network classification (see details below)
 - store Shapefile of results
 
@@ -128,7 +127,7 @@ See https://github.com/SurfaceAI/classification_models
 
 The aggregation algorithm runs as follows:
 
-- aggregate images on 20m subsegments; only use images that are either not within the vicinity of another road (part) or where the road scene classification matches the road type of the segment
+- aggregate images on subsegments; only use images that are either not within the vicinity of another road (part) or where the road scene classification matches the road type of the segment
     - surface type: majority vote
     - surface quality: average
 - aggregate all subsegments on road segment

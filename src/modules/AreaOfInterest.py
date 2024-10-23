@@ -137,12 +137,11 @@ class AreaOfInterest:
             existing_img_ids = db.img_ids_from_dbtable(f"{self.name}_img_classifications")
             logging.info(f"existing classified images: {len(existing_img_ids)}")
             img_ids = list(set(img_ids) - set(existing_img_ids))
-        logging.info(f"Images to classify: {len(img_ids)}")
 
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
         for i in tqdm(
-            range(0, len(img_ids), md.batch_size), desc="Download and classify images"
+            range(0, len(img_ids), md.batch_size), desc=f"Download and classify {len(img_ids)} images"
         ):
             j = min(i + md.batch_size, len(img_ids))
 
