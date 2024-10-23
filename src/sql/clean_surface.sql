@@ -2,6 +2,11 @@ alter table {name}_way_selection add column if not exists surface_clean VARCHAR;
 
 UPDATE {name}_way_selection
 SET surface_clean = CASE 
+                        WHEN surface = 'asphalt' THEN 'asphalt'
+                        WHEN surface = 'concrete' THEN 'concrete'
+                        WHEN surface = 'sett' THEN 'sett'
+                        WHEN surface = 'paving_stones' THEN 'paving_stones'
+                        WHEN surface = 'unpaved' THEN 'unpaved'
                         WHEN surface = 'compacted' THEN 'unpaved'
                         WHEN surface = 'gravel' THEN 'unpaved'
                         WHEN surface = 'ground' THEN 'unpaved'
