@@ -51,8 +51,12 @@ class AreaOfInterest:
 
         # img variables
         self.img_size = config.get("img_size", "thumb_1024_url")
-        self.userid =  config.get("userid", False) # only limited to a specific user id? TODO: implement
-        self.use_pano =  config.get("use_pano", False) # exclude panoramic images # TODO: implement inclusion
+        self.userid = config.get(
+            "userid", False
+        )  # only limited to a specific user id? TODO: implement
+        self.use_pano = config.get(
+            "use_pano", False
+        )  # exclude panoramic images # TODO: implement inclusion
         self.dist_from_road = config.get("dist_from_road")
 
         # road network variables
@@ -99,7 +103,6 @@ class AreaOfInterest:
             "min_road_length": self.min_road_length,
         }
 
-
     def get_and_write_img_metadata(self, mi, db):
         # get all relevant tile ids
         db.execute_sql_query(const.SQL_CREATE_IMG_METADATA_TABLE, self.query_params)
@@ -133,15 +136,18 @@ class AreaOfInterest:
 
     def classify_images(self, mi, db, md):
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
-        if (db.table_exists(f"{self.name}_img_classifications")):
-            existing_img_ids = db.img_ids_from_dbtable(f"{self.name}_img_classifications")
+        if db.table_exists(f"{self.name}_img_classifications"):
+            existing_img_ids = db.img_ids_from_dbtable(
+                f"{self.name}_img_classifications"
+            )
             logging.info(f"existing classified images: {len(existing_img_ids)}")
             img_ids = list(set(img_ids) - set(existing_img_ids))
 
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
         for i in tqdm(
-            range(0, len(img_ids), md.batch_size), desc=f"Download and classify {len(img_ids)} images"
+            range(0, len(img_ids), md.batch_size),
+            desc=f"Download and classify {len(img_ids)} images",
         ):
             j = min(i + md.batch_size, len(img_ids))
 
@@ -169,7 +175,6 @@ class AreaOfInterest:
 
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)
 
-
     def imgs_to_shapefile(self, db, output_path):
         query = f"""
         DROP TABLE IF EXISTS temp_imgs;
@@ -184,7 +189,7 @@ class AreaOfInterest:
 
     def road_network_with_osm_groundtruth(self, db, output_path):
         db.execute_sql_query(const.SQL_CLEAN_SURFACE, self.query_params)
-        
+
         query = f"""
         DROP TABLE IF EXISTS temp_rn;
         SELECT gp.*, ws.surface_clean, ws.smoothness
@@ -196,4 +201,3 @@ class AreaOfInterest:
         db.execute_sql_query(query, is_file=False)
         db.table_to_shapefile("temp_rn", output_path)
         db.execute_sql_query("DROP TABLE temp_rn;", is_file=False)
-

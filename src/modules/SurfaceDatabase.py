@@ -6,18 +6,28 @@ from pathlib import Path
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import DictCursor, execute_batch
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT 
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 import fnmatch
 from pydriosm.downloader import GeofabrikDownloader
-#from pydriosm.ios import PostgresOSM
+
+# from pydriosm.ios import PostgresOSM
+
 
 class SurfaceDatabase:
     """Database class to handle database setup and data processing"""
 
     def __init__(
-        self, dbname, dbuser, dbpassword="", dbhost="localhost", dbport=5432, pbf_folder=None, osm_region=None, 
-        road_network_path=None, sql_custom_way_prep=None
+        self,
+        dbname,
+        dbuser,
+        dbpassword="",
+        dbhost="localhost",
+        dbport=5432,
+        pbf_folder=None,
+        osm_region=None,
+        road_network_path=None,
+        sql_custom_way_prep=None,
     ):
         """Initializes the database class
 
@@ -35,8 +45,8 @@ class SurfaceDatabase:
         self.dbname = dbname
         self.dbuser = dbuser
         self.dbpassword = dbpassword
-        self.dbhost = dbhost 
-        self.dbport = dbport 
+        self.dbhost = dbhost
+        self.dbport = dbport
         self.pbf_folder = pbf_folder
         self.osm_region = osm_region
         self.road_network_path = road_network_path
@@ -44,28 +54,32 @@ class SurfaceDatabase:
 
         self.setup_database()
 
-    def __repr__(self):
-        return f"Database(name={self.dbname}, tables={self.get_table_names()}, input_road_network={self.osm_region})"
-
     def _database_exists(self):
         query = f"SELECT 1 FROM pg_database WHERE datname = '{self.dbname}'"
-        res = self.execute_sql_query(query, is_file=False, get_response= True, postgres_default=True)
+        res = self.execute_sql_query(
+            query, is_file=False, get_response=True, postgres_default=True
+        )
         return len(res) > 0
-        
+
     def setup_database(self):
         """
         Setup the database with the provided pbf file
         """
 
         if self._database_exists():
-            logging.info(f"Database {self.dbname} already exists. Skip DB creation step.")
-        else:
             logging.info(
-                "Setup database."
+                f"Database {self.dbname} already exists. Skip DB creation step."
             )
+        else:
+            logging.info("Setup database.")
             try:
-                self.execute_sql_query(f'CREATE DATABASE "{self.dbname}"', is_file=False, postgres_default=True, set_isolation_level=True)
-                self.execute_sql_query('CREATE EXTENSION postgis;', is_file=False)
+                self.execute_sql_query(
+                    f'CREATE DATABASE "{self.dbname}"',
+                    is_file=False,
+                    postgres_default=True,
+                    set_isolation_level=True,
+                )
+                self.execute_sql_query("CREATE EXTENSION postgis;", is_file=False)
                 if self.osm_region:
                     self._init_osm_data()
 
@@ -76,7 +90,9 @@ class SurfaceDatabase:
                         shell=True,
                         executable="/bin/bash",
                     )
-                    logging.info(f"Road network added to database from {self.road_network_path}")
+                    logging.info(
+                        f"Road network added to database from {self.road_network_path}"
+                    )
                     self.execute_sql_query(self.sql_custom_way_prep)
 
                 else:
@@ -84,38 +100,50 @@ class SurfaceDatabase:
             except Exception as e:
 
                 # drop incorrectly initialized database
-                self.execute_sql_query(f'DROP DATABASE "{self.dbname}"', is_file=False, postgres_default=True, set_isolation_level=True)
+                self.execute_sql_query(
+                    f'DROP DATABASE "{self.dbname}"',
+                    is_file=False,
+                    postgres_default=True,
+                    set_isolation_level=True,
+                )
                 logging.error(f"Error setting up database.")
                 raise e
             logging.info("Database setup complete.")
 
     def _init_osm_data(self):
-        self.execute_sql_query('CREATE EXTENSION hstore;', is_file=False)
+        self.execute_sql_query("CREATE EXTENSION hstore;", is_file=False)
 
-        osmosis_scheme_file = Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
+        osmosis_scheme_file = (
+            Path(os.path.dirname(__file__)).parent.parent / "pgsnapshot_schema_0.6.sql"
+        )
         self.execute_sql_query(osmosis_scheme_file)
 
         if not os.path.exists(self.pbf_folder):
             os.makedirs(self.pbf_folder)
             is_download = True
         else:
-            for root,_,files in os.walk(self.pbf_folder):
-                pbf_files = fnmatch.filter(files, f"{self.osm_region}*.osm.pbf") 
+            for root, _, files in os.walk(self.pbf_folder):
+                pbf_files = fnmatch.filter(files, f"{self.osm_region}*.osm.pbf")
                 if len(pbf_files) > 0:
                     pbf_file = Path(root) / pbf_files[0]
                     is_download = False
-                else: 
+                else:
                     is_download = True
         if is_download:
-            logging.info(f"PBF file for {self.osm_region} does not exist. It will be downloaded from Geofabrik.")
+            logging.info(
+                f"PBF file for {self.osm_region} does not exist. It will be downloaded from Geofabrik."
+            )
             gfd = GeofabrikDownloader()
-            pbf_file = gfd.download_osm_data(self.osm_region, "pbf", 
-                                            download_dir= self.pbf_folder,
-                                            confirmation_required=False, 
-                                            ret_download_path=True,
-                                            verbose=True)
+            pbf_file = gfd.download_osm_data(
+                self.osm_region,
+                "pbf",
+                download_dir=self.pbf_folder,
+                confirmation_required=False,
+                ret_download_path=True,
+                verbose=True,
+            )
             logging.info(f"PBF file downloaded to {pbf_file}")
-        
+
         logging.info(f"******LOAD OSM DATA FROM {pbf_file} TO DATABASE******")
         logging.info(f"Depending on the file size, this may take a while.")
 
@@ -139,7 +167,7 @@ class SurfaceDatabase:
         Returns:
             psycopg2.connection: a database connection
         """
-        dbname = 'postgres' if postgres_default else self.dbname
+        dbname = "postgres" if postgres_default else self.dbname
         return psycopg2.connect(
             dbname=dbname,
             user=self.dbuser,
@@ -148,7 +176,15 @@ class SurfaceDatabase:
             password=self.dbpassword,
         )
 
-    def execute_sql_query(self, query, params={}, is_file=True, postgres_default= False, get_response=False, set_isolation_level=False):
+    def execute_sql_query(
+        self,
+        query,
+        params={},
+        is_file=True,
+        postgres_default=False,
+        get_response=False,
+        set_isolation_level=False,
+    ):
         """Execute a sql query
 
         Args:
@@ -191,7 +227,9 @@ class SurfaceDatabase:
 
     def table_exists(self, table_name):
         query = f"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{table_name}');"
-        res = self.execute_sql_query(query, {"table_name": table_name}, is_file=False, get_response=True)
+        res = self.execute_sql_query(
+            query, {"table_name": table_name}, is_file=False, get_response=True
+        )
         return res[0][0]
 
     def table_to_shapefile(self, table_name, output_file):
@@ -227,10 +265,11 @@ class SurfaceDatabase:
 
     def remove_temp_tables(self, aoi_name):
         self.execute_sql_query(
-                f"""DROP TABLE IF EXISTS {aoi_name}_eval_groups,
+            f"""DROP TABLE IF EXISTS {aoi_name}_eval_groups,
                                          {aoi_name}_partitions,
                                          {aoi_name}_segmented_ways,
                                          {aoi_name}_way_selection,
                                          {aoi_name}_img_selection;
-                """
-            , is_file=False)
+                """,
+            is_file=False,
+        )

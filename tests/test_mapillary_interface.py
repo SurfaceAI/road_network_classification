@@ -40,7 +40,6 @@ def aoi():
     )
 
 
-
 # def test_download_image(mapillary_interface, mocker):
 #     mock_response = MagicMock(status_code=200, content=b"binary image data 100")
 #     mock_response.json.return_value = {"thumb_2048_url": "https://IMG_URL"}
