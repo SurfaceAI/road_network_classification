@@ -1,14 +1,15 @@
 import os
 import sys
 from pathlib import Path
-import pytest
 from unittest.mock import MagicMock, call
+
 import numpy as np
+import pytest
 
 root_dir = Path(os.path.abspath(__file__)).parent.parent
 sys.path.append(str(root_dir))
-from src.modules.AreaOfInterest import AreaOfInterest
 from src import constants as const
+from src.modules.AreaOfInterest import AreaOfInterest
 
 
 @pytest.fixture

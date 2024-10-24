@@ -1,7 +1,8 @@
-import pytest
 import os
 import sys
 from pathlib import Path
+
+import pytest
 from PIL import Image
 
 root_dir = Path(os.path.abspath(__file__)).parent.parent

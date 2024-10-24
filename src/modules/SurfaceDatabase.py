@@ -1,3 +1,4 @@
+import fnmatch
 import logging
 import os
 import subprocess
@@ -5,10 +6,8 @@ from pathlib import Path
 
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extras import DictCursor, execute_batch
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-
-import fnmatch
+from psycopg2.extras import DictCursor, execute_batch
 from pydriosm.downloader import GeofabrikDownloader
 
 # from pydriosm.ios import PostgresOSM

@@ -1,10 +1,10 @@
+import logging
 import os
 import sys
 from pathlib import Path
 
 import mercantile
 import numpy as np
-import logging
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent

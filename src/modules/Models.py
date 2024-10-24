@@ -1,12 +1,11 @@
 import os
 import sys
-
 # from torch.utils.data import Subset
 from functools import partial
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
 import torch
+from huggingface_hub import hf_hub_download
 from torch import Tensor, nn
 from torchvision import models, transforms
 
