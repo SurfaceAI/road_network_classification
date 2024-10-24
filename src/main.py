@@ -44,7 +44,7 @@ def run_pipeline(args, root_path):
     ##### classify images
     if args.query_images:
         logging.info("Classify images")
-        # aoi.classify_images(mi, db, md)
+        aoi.classify_images(mi, db, md)
     else:
         logging.info(
             "Only use existing image classifications. Skip classification step."
