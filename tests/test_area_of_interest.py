@@ -107,12 +107,16 @@ def test_get_and_write_img_metadata(aoi, mocker):
         ]
     )
 
+def test_compute_yaws(aoi):
+    pass
+
+    
 
 def test_classify_images(aoi):
     mock_mi = MagicMock()
     mock_mi.query_imgs = MagicMock()
     mock_db = MagicMock()
-    mock_db.img_ids_from_dbtable = MagicMock(return_value=["001", "002"])
+    mock_db.cols_from_dbtable = MagicMock(return_value=[["001", "002"]])
     mock_db.table_exists = MagicMock(return_value=False)
     mock_db.execute_sql_query = MagicMock()
     mock_db.add_rows_to_table = MagicMock()

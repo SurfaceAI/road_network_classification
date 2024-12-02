@@ -21,6 +21,7 @@ psycopg2 = "^2.9.9"
 psycopg2-binary = "^2.9.9"
 huggingface-hub = "^0.25.2"
 pydriosm = "^2.2.0"
+pyequilib = "^0.5.8"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"

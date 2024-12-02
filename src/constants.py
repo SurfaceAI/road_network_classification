@@ -20,6 +20,7 @@ SQL_AGGREGATE_ON_ROADS = SQL_FOLDER / "aggregation_alg{}.sql"
 SQL_SEPARATE_ROAD_TYPES = SQL_FOLDER / "separate_road_types.sql"
 SQL_SEPARATE_NULL_ROAD_TYPES = SQL_FOLDER / "separate_null_road_types.sql"
 SQL_CLEAN_SURFACE = SQL_FOLDER / "clean_surface.sql"
+SQL_GET_SEQUENCE_NEIGHBORS = SQL_FOLDER / "get_sequence_neighbors.sql"
 
 # Mapilary settings
 MAPILLARY_TILE_URL = "https://tiles.mapillary.com/maps/vtp/{}/2/{}/{}/{}"

@@ -1,12 +1,12 @@
 CREATE TEMP TABLE temp_transformed AS
 SELECT
-  img_id,
-  sequence_id,
-  captured_at,
-  st_transform(geom, {crs}) AS geom
+  *,
+  st_transform(geom, {crs}) AS geom_t
 FROM
   {name}_img_metadata;
- 
+ALTER TABLE temp_transformed drop column geom;
+ALTER TABLE temp_transformed RENAME COLUMN geom_t TO geom;
+
 CREATE INDEX temp_transformed_idx ON temp_transformed USING GIST(geom);
 
 
@@ -15,12 +15,9 @@ CREATE TABLE temp_table AS (
   *
   FROM (
     SELECT
-      img_id,
-      p.sequence_id,
-      p.captured_at,
+      p.*,
       seg.way_id,
       seg.segment_id,
-      p.geom,
       ST_Distance(seg.geom, p.geom) AS dist
     FROM
       temp_transformed AS p
@@ -59,7 +56,7 @@ SET num_closeby_ways = (
 );
 
 DROP TABLE  {name}_img_metadata;
-ALTER TABLE temp_table RENAME TO  {name}_img_metadata;
+ALTER TABLE temp_table RENAME TO {name}_img_metadata;
 
 DROP TABLE  temp_transformed;
 

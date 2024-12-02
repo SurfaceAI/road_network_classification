@@ -244,11 +244,30 @@ class SurfaceDatabase:
             executable="/bin/bash",
         )
 
-    def img_ids_from_dbtable(self, db_table):
+    def cols_from_dbtable(self, db_table, columns, where=False):
         conn = self._create_dbconnection()
+        query = f"SELECT {', '.join(columns)} FROM {db_table}"
+        if where:
+            query += f" WHERE {where}"
 
         with conn.cursor(cursor_factory=DictCursor) as cursor:
-            img_ids = cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table}"))
+            cursor.execute(sql.SQL(query))
+            col_values = cursor.fetchall()
+            conn.close()
+        
+        res = []
+        for i in range(len(columns)):
+            res.append([value[i] for value in col_values])
+        return res
+    
+    def img_ids_from_dbtable(self, db_table, use_pano=False):
+        conn = self._create_dbconnection()
+        query = f"SELECT img_id FROM {db_table}"
+        if not use_pano:
+            query += " WHERE is_pano = 'False'"
+
+        with conn.cursor(cursor_factory=DictCursor) as cursor:
+            img_ids = cursor.execute(sql.SQL(query))
             img_ids = cursor.fetchall()
             img_ids = [img_id[0] for img_id in img_ids]
         conn.close()

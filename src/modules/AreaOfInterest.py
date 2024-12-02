@@ -12,6 +12,7 @@ sys.path.append(str(src_dir))
 from tqdm import tqdm
 
 import constants as const
+from pano_utils import pano_to_persp, compute_yaw, compute_direction_of_travel
 
 
 class AreaOfInterest:
@@ -51,6 +52,7 @@ class AreaOfInterest:
 
         # img variables
         self.img_size = config.get("img_size", "thumb_1024_url")
+        self.pano_img_size = config.get("pano_img_size", "thumb_2048_url")
         self.userid = config.get(
             "userid", False
         )  # only limited to a specific user id? TODO: implement
@@ -134,44 +136,109 @@ class AreaOfInterest:
                 db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
         db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
 
-    def classify_images(self, mi, db, md):
-        img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
+    def _get_imgs_to_classify(self, db):
+        img_ids = db.cols_from_dbtable(f"{self.name}_img_metadata", ["img_id"],
+                                       where=f'is_pano={self.use_pano}')[0]
+        
+        # get already classified images to exclude from classification
         if db.table_exists(f"{self.name}_img_classifications"):
-            existing_img_ids = db.img_ids_from_dbtable(
-                f"{self.name}_img_classifications"
-            )
+            existing_img_ids = db.cols_from_dbtable(
+                f"{self.name}_img_classifications", ["img_id"]
+            )[0]
             logging.info(f"existing classified images: {len(existing_img_ids)}")
+        else:
+            existing_img_ids = []
+
+        # seperate pano and non-pano images
+        if self.use_pano:
+            non_pano_img_ids = db.cols_from_dbtable(
+                f"{self.name}_img_metadata", ["img_id"], where='is_pano=False'
+            )[0]
+            pano_img_ids = list(set(img_ids) - set(non_pano_img_ids) - set(existing_img_ids))
+            non_pano_img_ids = list(set(non_pano_img_ids) - set(existing_img_ids))
+            img_id_dict = {"non_pano": non_pano_img_ids, "pano": pano_img_ids}
+        else:
             img_ids = list(set(img_ids) - set(existing_img_ids))
+            img_id_dict = {"non_pano": img_ids}
+        return img_id_dict
+    
+    def _compute_yaws(self, db, img_ids):
+        # compute yaw for each sequence
+        formatted_img_ids = [f"'{img_id}'" for img_id in img_ids]
+        metadata = db.cols_from_dbtable(f"{self.name}_img_metadata", 
+                                            columns = ["img_id", "compass_angle", "sequence_id"],
+                                            where = f"img_id in ({','.join(formatted_img_ids)})"
+                                            )
+        sequ_img_ids = metadata[0]
+        compass_angles = metadata[1]
+        sequence_ids = metadata[2]
+        img_to_seq = dict(zip(sequ_img_ids, sequence_ids))
+        yaws_per_sequence = dict()
 
+        # compute yaws for 5 images of each per sequence and average
+        for sequence_id in np.unique(sequence_ids):
+            seq_yaws = []
+            for j in [6, 4, 2, 1.8, 1.2]:
+                sequ_id_ids = [i for i, x in enumerate(sequence_ids) if x == sequence_id]
+                sequ_id_id = sequ_id_ids[int(len(sequ_id_ids)/j)] 
+                sequ_img_id = sequ_img_ids[sequ_id_id]
+                neighbor_coords = db.execute_sql_query(const.SQL_GET_SEQUENCE_NEIGHBORS, 
+                                    {**self.query_params, "img_id": sequ_img_id, "sequence_id": sequence_id}, get_response=True)
+                seq_yaws.append(compute_yaw(compass_angles[sequ_id_id], compute_direction_of_travel(neighbor_coords)))
+            yaws_per_sequence[sequence_id]= np.mean(seq_yaws)
+        
+        return [yaws_per_sequence[img_to_seq[i]] for i in sequ_img_ids]
+
+    def classify_images(self, mi, db, md):
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
+        img_id_dict = self._get_imgs_to_classify(db)
 
-        for i in tqdm(
-            range(0, len(img_ids), md.batch_size),
-            desc=f"Download and classify {len(img_ids)} images",
-        ):
-            j = min(i + md.batch_size, len(img_ids))
+        for img_type in img_id_dict.keys():
+            img_ids = img_id_dict[img_type]
+            
+            if (img_type == "non_pano") & (len(img_ids) > 0):
+                img_size = self.img_size
+                batch_size = md.batch_size
+                direction = 0
+            elif (img_type == "pano") & (len(img_ids) > 0):
+                img_size = self.pano_img_size 
+                # bc pano images have a front and back, we need to half the batch size
+                batch_size = int(md.batch_size / 2)
+                yaws = self._compute_yaws(db, img_ids)
+    
+            for i in tqdm(
+                range(0, len(img_ids), batch_size),
+                desc=f"Download and classify {len(img_ids)} {img_type} images",
+            ):
+                j = min(i + batch_size, len(img_ids))
 
-            img_data = mi.query_imgs(
-                img_ids[i:j],
-                self.img_size,
-            )
-            model_output = md.batch_classifications(img_data)
+                batch_img_ids = img_ids[i:j]
 
-            # add img_id to model_output
-            # start = time.time()
-            value_list = [
-                [img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)
-            ]
-            header = [
-                "img_id",
-                "road_type_pred",
-                "road_type_prob",
-                "type_pred",
-                "type_class_prob",
-                "quality_pred",
-            ]
-            db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
-            # print(f"db insert {time.time() - start}")
+                img_data = mi.query_imgs(
+                    batch_img_ids,
+                    img_size,
+                )
+                if img_type == "pano":
+                    img_data = [pano_to_persp(img, yaw, direction) for img, yaw in zip(img_data, yaws) for direction in [0, 1]]
+                    batch_img_ids = [f"{img_id}_{direction}" for img_id in batch_img_ids for direction in [0,1]]
+
+                model_output = md.batch_classifications(img_data)
+
+                # add img_id to model_output
+                # start = time.time()
+                value_list = [
+                    [img_id] + mo for img_id, mo in zip(batch_img_ids, model_output)
+                ]
+                header = [
+                    "img_id",
+                    "road_type_pred",
+                    "road_type_prob",
+                    "type_pred",
+                    "type_class_prob",
+                    "quality_pred",
+                ]
+                db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
+                # print(f"db insert {time.time() - start}")
 
         db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)
 
