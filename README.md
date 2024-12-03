@@ -8,7 +8,25 @@ For a specified bounding box, a Shapfile is generated that contains the surface 
 ![Schematic illustration of model pipeline](img/model_pipeline.png)
 
 
-Find the [paper](https://arxiv.org/abs/2409.18922) of this publication here.
+Find the [paper]([https://arxiv.org/abs/2409.18922](https://dl.acm.org/doi/10.1145/3681780.3697277)) of this publication here.
+
+Cite as:
+
+```
+    @inproceedings{10.1145/3681780.3697277,
+        author = {Kapp, Alexandra and Hoffmann, Edith and Weigmann, Esther and Mihaljevi\'{c}, Helena},
+        title = {SurfaceAI: Automated creation of cohesive road surface quality datasets based on open street-level imagery},
+        year = {2024},
+        publisher = {Association for Computing Machinery},
+        address = {New York, NY, USA},
+        doi = {10.1145/3681780.3697277},
+        booktitle = {Proceedings of the 2nd ACM SIGSPATIAL International Workshop on Advances in Urban-AI},
+        pages = {54–57},
+        numpages = {4},
+        location = {Atlanta, GA, USA},
+        series = {UrbanAI '24}
+    }
+```
 
 ## Getting started
 
@@ -32,6 +50,10 @@ Execute the pipeline with `python src/main.py -c my_config_file`
 The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
 
 #### Details
+
+
+
+**Configuration files**
 
 The configuration files are constructed to provide one global configuration that sets parameters regardless of the specific *area of interest*. For each area of interest, defined by its geographical bounding box, a dedicated config file is used. 
 This allows you to specify multiple areas of interest. Within the specific configuration file, you may overwrite any global parameter. 
@@ -67,6 +89,26 @@ They consist of the following:
         - `batch_size`model batch size
 
 You can overwrite any parameter in the specific config. E.g., the `dist_to_road`shall be 10 meters for all area of interest, except one, then you can set `dist_to_road`=10 within the global config and overwrite the parameter for only a single area of interst by setting `dist_to_road`=20 within the specific config.
+
+
+**Arguments for command-line options for main.py**
+
+```
+usage: surfaceAI [-h] [-c CONFIGFILE] [--recreate_roads | --no-recreate_roads] [--query_images | --no-query_images] [--export_results | --no-export_results]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CONFIGFILE, --configfile CONFIGFILE
+                        Name of the configuration file in the configs folder. Default. Required argument.
+  --recreate_roads, --no-recreate_roads
+                        If False, omit preprocessing or road segments if already present in database (to save time given multiple runs on the same area of interest). Default: False
+                        (default: False)
+  --query_images, --no-query_images
+                        If False, skip querying new images and only use existing image metadata in database. Default: True (default: True)
+  --export_results, --no-export_results
+                        Export results to Shapefile. Default: True (default: True)
+```
+
 
 ### Run SurfaceAI
 
