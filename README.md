@@ -39,25 +39,15 @@ You need to provide a database user name and password with which you may access 
 - A Mapillary access token is required and needs to be provided in the `02_credentials.json` file. You can obtain a free token as described [here](https://help.mapillary.com/hc/en-us/articles/360010234680-Accessing-imagery-and-data-through-the-Mapillary-API#h_e18c3f92-8b3c-4d26-8a1b-a880bde3a645).
 
 
-### Quick Start (TL;DR)
-
-Use the `configs/01_1_area_of_interest_config_example.json` as a template for `my_config_file.json` and specify attributes `name` (str), `minLon`, `minLat`, `maxLon`, `maxLat` of the bounding box of your area of interest.
-Limit the OSM road network (global config parameter `osm_region`) to the required scope ("germany" takes approx. 30GB database storage).
-
-Execute the pipeline with `python src/main.py -c my_config_file` 
-
-The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
-
-
-### Setup environment and run SurfaceAI
+### Setup Python environment
 
 Using [`poetry`](https://python-poetry.org/) for dependency management, install poetry: 
 
 
 ```bash 
     pip install pipx
+    pipx install poetry
 ```
-
 
 Create an environment using poetry
 
@@ -71,20 +61,30 @@ Install required packages, as defined in `pyproject.toml`
     poetry install
 ```
 
+### Quick Start (TL;DR)
 
+Use the `configs/01_1_area_of_interest_config_example.json` as a template for `my_config_file.json` and specify attributes `name` (str), `minLon`, `minLat`, `maxLon`, `maxLat` of the bounding box of your area of interest.
+Limit the OSM road network (global config parameter `osm_region`) to the required scope ("germany" takes approx. 30GB database storage).
 
-Start the pipeline by running:
+If environment is not active, activate with
 
-```bash
-    python src/main.py  -c CONFIG_NAME
+```bash 
+    poetry shell
 ```
 
-The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
+Execute the pipeline with 
+
+
+```bash
+    python src/main.py -c my_config_file
+```
+
+The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
 
 If database to create further area of interest datasets is no longer needed, remove database with (OSM) road network:
 
 ```bash
-dropdb YOUR_DBNAME
+    dropdb YOUR_DBNAME
 ```
 
 ## Advanced configuration options
