@@ -4,7 +4,8 @@ ALTER TABLE {name}_group_predictions
 add column if not exists quali_pred float,
 add column if not exists way_length float,
 add column if not exists conf_score float,
-add column if not exists n_segments int;
+add column if not exists n_segments int,
+add column if not exists n_rated_segments int;
 
 
 with SegmentCounts AS(
@@ -12,13 +13,14 @@ select
 	img.way_id,
     img.group_num,
     img.part_id,
-    COUNT(DISTINCT img.segment_id) as n_segments
+    COUNT(DISTINCT img.segment_id) as n_rated_segments
 from {name}_img_selection img
     GROUP BY
         img.way_id, img.group_num, img.part_id
 )
 UPDATE {name}_group_predictions ways
-SET n_segments = SC.n_segments,
+SET n_rated_segments = SC.n_rated_segments,
+    n_segments = ceil(ST_Length(ways.geometry)/20),
 	way_length = ST_Length(ways.geometry),
 	conf_score =  ways.avg_rt_share * (cast(segment_vote_count as float) /ceil(ST_Length(ways.geometry)/20) )
 from SegmentCounts SC
@@ -26,12 +28,12 @@ WHERE ways.id = SC.way_id and ways.group_num = SC.group_num and ways.part_id = S
 
 
 delete from {name}_group_predictions ways
-where (ways.way_length / ways.n_segments  > 30) 
-    or (cast(ways.segment_vote_count as float) / cast( ways.n_segments as float) < 0.5) 
+where (ways.n_rated_segments < (ways.n_segments*(2.0/3.0)))
+    or (cast(ways.segment_vote_count as float) / cast( ways.n_rated_segments as float) < 0.5) 
     or n_imgs < 3;
--- remove predictions where there is no prediction for respective road type every 30 meters 
--- or less than 50% of segments are of predicted type 
--- or if there is less than 3 images
+-- remove predictions where there is no prediction for at least 2/3 of the subsegments (OLD: remove predictions where there is no prediction for respective road type every 30 meters (ways.way_length / ways.n_rated_segments  > 30) 
+-- or less than 50% of subsegments are of predicted type 
+-- or if there is less than 3 images for the road in total
 
 
 -- drop lower confidence score
@@ -96,7 +98,7 @@ CREATE TABLE RowsToKeep as
     segment_vote_count, avg_rt_share, conf_score, 
     quali_pred, 
     road_type, 
-    n_segments, avg_img_counts, n_imgs, 
+    n_segments, n_rated_segments, avg_img_counts, n_imgs, way_length,
     min_date, max_date, geom_4326 as geometry
     FROM RankedRows
     WHERE row_num = 1

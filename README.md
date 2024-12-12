@@ -206,17 +206,17 @@ See https://github.com/SurfaceAI/classification_models
 
 The aggregation algorithm runs as follows:
 
-- aggregate images on subsegments; only use images that are either not within the vicinity of another road (part) or where the road scene classification matches the road type of the segment
-    - surface type: majority vote
-    - surface quality: average
+- aggregate images on subsegments; only use images that are either not within the vicinity of another road (part) or where the road scene classification matches the road type of the segment (according to OSM)
+    - surface type: majority vote of image classifications
+    - surface quality: average of image regressions
 - aggregate all subsegments on road segment (or group, if `segments_per_group` is given)
-    - surface type: majority vote (if tied, also use image counts)
-    - surface quality: average
+    - surface type: majority vote of subsegments (if tied, also use image counts)
+    - surface quality: average of subsegments
 
-Set predition to `null` if 
-- remove predictions where there is no prediction for respective road type every 30 meters 
-- or less than 50% of segments are of predicted type 
-- or if there is less than 3 images
+Set prediction to `null` if 
+- there is no prediction for at least 2/3 of the subsegments of a segment/group
+- or less than 50% of subsegments are of predicted type 
+- or if there is less than 3 images for the entire segment/group
 
 
 

@@ -106,7 +106,7 @@ from {name}_img_selection img
 ), SegmentSurfaceVotes2 as ( -- join total number of images per segment (and road type) to compute confidence score
 	select SSV.*,
 	VC.img_counts,
-	CAST(SSV.vote_count as float) / cast(VC.img_counts as float) as rt_share
+	CAST(SSV.vote_count as float) / CAST(VC.img_counts as float) as rt_share
 	from SegmentSurfaceVotes SSV
     join VoteCounts VC
     on VC.segment_id = SSV.segment_id and VC.part_id = SSV.part_id
@@ -131,7 +131,7 @@ TopRankedVotes AS (
         TRV.group_num,
         TRV.type_pred,
         TRV.part_id,
-        SUM(TRV.vote_count) as vote_count, -- how many votes this this surface type?
+        SUM(TRV.vote_count) as vote_count, -- how many votes for this surface type?
         AVG(TRV.img_counts) as avg_img_counts, -- how many imgs per subsegment on average for this road type?
         SUM(TRV.img_counts) as n_imgs, -- sum of all images for this road type
         AVG(TRV.rt_share) as avg_rt_share,
