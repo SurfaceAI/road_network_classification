@@ -36,23 +36,6 @@ def model_interface():
     )
 
 
-# def test_initialization(model_interface):
-#     # Test the initialization of the AreaOfInterest object
-#     pass
-#     # assert aoi.name == "test_aoi"
-#     # assert aoi.run == "run1"
-#     # assert aoi.minLon == 10
-#     # assert aoi.minLat == 15
-#     # assert aoi.maxLon == 20
-#     # assert aoi.maxLat == 25
-#     # assert aoi.proj_crs == 3035
-#     # assert aoi.img_size == "thumb_2048_url"
-#     # assert aoi.dist_from_road == 10
-#     # assert aoi.min_road_length == 10
-#     # assert aoi.segment_length == 20
-#     # assert aoi.segments_per_group == None
-
-
 def test_model_predict(model_interface):
     input_data = []
     for image_id in ["1000068877331935", "458670231871080", "1000140361462393"]:
