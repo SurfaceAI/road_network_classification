@@ -39,10 +39,10 @@ def test_initialization(aoi):
     # Test the initialization of the AreaOfInterest object
     assert aoi.name == "test_aoi"
     assert aoi.run == "run1"
-    assert aoi.minLon == 10
-    assert aoi.minLat == 15
-    assert aoi.maxLon == 20
-    assert aoi.maxLat == 25
+    assert aoi.minLon == 10.01
+    assert aoi.minLat == 15.01
+    assert aoi.maxLon == 10.02
+    assert aoi.maxLat == 15.02
     assert aoi.proj_crs == 3035
     assert aoi.img_size == "thumb_2048_url"
     assert aoi.dist_from_road == 10
@@ -55,10 +55,10 @@ def test__get_query_params(aoi):
     # Test the _get_query_params method of the AreaOfInterest object
     assert aoi._get_query_params() == {
         "name": "test_aoi",
-        "bbox0": 10,
-        "bbox1": 15,
-        "bbox2": 20,
-        "bbox3": 25,
+        "bbox0": 10.01,
+        "bbox1": 15.01,
+        "bbox2": 10.02,
+        "bbox3": 15.02,
         "crs": 3035,
         "dist_from_road": 10,
         "additional_id_column": "",
