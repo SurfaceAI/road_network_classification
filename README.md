@@ -35,22 +35,59 @@ Cite as:
 -  A Postgis database is used for faster geocomputations. This requires prior installation of `postgresql`, `postgis`, `osmosis` (E.g., with `brew install` for MacOS and `apt install` for Linux)
 
 - Create a `02_credentials.json` file according to `02_credentials_example.json`.
-You need to provide a database user name and password with which you may access your Posgres databases (this may need to be configured on your server). You need to ensure that your database user has `superuser`rights to create extensions (postgis and hstore).
+You need to provide a database user name and password with which you may access your Postgres databases (this may need to be configured on your server). You need to ensure that your database user has `superuser`rights to create extensions (postgis and hstore).
 - A Mapillary access token is required and needs to be provided in the `02_credentials.json` file. You can obtain a free token as described [here](https://help.mapillary.com/hc/en-us/articles/360010234680-Accessing-imagery-and-data-through-the-Mapillary-API#h_e18c3f92-8b3c-4d26-8a1b-a880bde3a645).
 
-### User Input
 
-#### Quick Start (TL;DR)
+### Setup Python environment
+
+Using [`poetry`](https://python-poetry.org/) for dependency management, install poetry: 
+
+
+```bash 
+    pip install pipx
+    pipx install poetry
+```
+
+Create an environment using poetry
+
+```bash 
+    poetry shell
+```
+
+Install required packages, as defined in `pyproject.toml`
+
+```bash 
+    poetry install
+```
+
+### Quick Start (TL;DR)
 
 Use the `configs/01_1_area_of_interest_config_example.json` as a template for `my_config_file.json` and specify attributes `name` (str), `minLon`, `minLat`, `maxLon`, `maxLat` of the bounding box of your area of interest.
 Limit the OSM road network (global config parameter `osm_region`) to the required scope ("germany" takes approx. 30GB database storage).
 
-Execute the pipeline with `python src/main.py -c my_config_file` 
+If environment is not active, activate with
+
+```bash 
+    poetry shell
+```
+
+Execute the pipeline with 
+
+
+```bash
+    python src/main.py -c my_config_file
+```
 
 The created dataset is stored in `data/output/<NAME_FROM_CONFIG>_surfaceai.shp`
 
-#### Details
+If database to create further area of interest datasets is no longer needed, remove database with (OSM) road network:
 
+```bash
+    dropdb YOUR_DBNAME
+```
+
+## Advanced configuration options
 
 
 **Configuration files**
@@ -80,7 +117,7 @@ They consist of the following:
         - `dist_from_road`: maximum distance from road in CRS unit (usually meters) for an image to be assigned to the road,
         - `segment_length`: length of a subsegment for aggregation algorithm,
         - `min_road_length`: short roads, which are common in OSM, like driveways, can be excluded to reduce cluttering and noise. This parameter specifies the minimum road length to be included.
-        - `segments_per_group`: The length of a classified road segement in number of subsegments. E.g., if `segment_length` = 20 meters and `segments_per_group` = 3, then the output will result in 3x20=60 meter road segments. If set to null, then the road segments are maintained as given in the input of the road network.
+        - `segments_per_group`: The length of a classified road segement in number of subsegments. E.g., if `segment_length` = 20 meters and `segments_per_group` = 3, then the output will result in 3x20=60 meter road segments. If set to `null`, then the road segments are maintained as given in the input of the road network.
     - Classification model specific parameters:
         - `model_root`: path to root folder of models
         - `models`(dict): required keys: `road_type`, `surface_type`, `surface_quality`(with sub keys `asphalt`, `concrete`, `paving_stones`, `sett`, `unpaved`). Each value indicates the pt. file locaiton of the respective model weights 
@@ -101,52 +138,15 @@ optional arguments:
   -c CONFIGFILE, --configfile CONFIGFILE
                         Name of the configuration file in the configs folder. Default. Required argument.
   --recreate_roads, --no-recreate_roads
-                        If False, omit preprocessing or road segments if already present in database (to save time given multiple runs on the same area of interest). Default: False
-                        (default: False)
+                        If False, skip classification of newly queried images and only use existing image classifications in database. (default: False)
   --query_images, --no-query_images
-                        If False, skip querying new images and only use existing image metadata in database. Default: True (default: True)
+                        If False, skip querying new images and only use existing image metadata in database. (default: True)
   --export_results, --no-export_results
-                        Export results to Shapefile. Default: True (default: True)
-```
-
-
-### Run SurfaceAI
-
-Using [`poetry`](https://python-poetry.org/) for dependency management, install poetry: 
-
-
-```bash 
-    pip install pipx
-```
-
-
-Create an environment using poetry
-
-```bash 
-    poetry shell
-```
-
-Install required packages, as defined in `pyproject.toml`
-
-```bash 
-    poetry install
+                        Export results to Shapefile. (default: True)
 ```
 
 
 
-Start the pipeline by running:
-
-```bash
-    python src/main.py  -c CONFIG_NAME
-```
-
-The created dataset is stored in `data/<NAME_FROM_CONFIG>_surfaceai.shp`
-
-If database to create further area of interest datasets is no longer needed, remove database with (OSM) road network:
-
-```bash
-dropdb YOUR_DBNAME
-```
 
 ## Implementation details
 
