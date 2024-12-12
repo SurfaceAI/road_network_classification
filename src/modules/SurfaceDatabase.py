@@ -141,6 +141,8 @@ class SurfaceDatabase:
                 ret_download_path=True,
                 verbose=True,
             )
+            if isinstance(pbf_file, list):
+                pbf_file = pbf_file[0]
             logging.info(f"PBF file downloaded to {pbf_file}")
 
         logging.info(f"******LOAD OSM DATA FROM {pbf_file} TO DATABASE******")
