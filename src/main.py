@@ -49,6 +49,8 @@ def run_pipeline(args, root_path):
         logging.info(
             "Only use existing image classifications. Skip classification step."
         )
+    db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, aoi.query_params)
+
 
     db.execute_sql_query(const.SQL_PREPARE_PARTITIONS, aoi.query_params)
     if db.osm_region is not None:  # is OSM file?
@@ -66,11 +68,7 @@ def run_pipeline(args, root_path):
     db.execute_sql_query(str(const.SQL_AGGREGATE_ON_ROADS).format(2), aoi.query_params)
     db.execute_sql_query(str(const.SQL_AGGREGATE_ON_ROADS).format(3), aoi.query_params)
 
-    if args.export_results:
-        logging.info("Export results to shapefiles.")
-        results_to_files(aoi, db)
-    else:
-        logging.info("Skip exporting results to shapefiles.")
+    results_to_files(aoi, db, args.export_results, args.export_img_predictions)
 
 
 def get_config(configfile, root_path):
@@ -127,23 +125,23 @@ def setup_pipeline(cg, credentials):
     return surface_database, area_of_interest, mapillary_interface, model_interface
 
 
-def results_to_files(area_of_interest, surface_database):
+def results_to_files(area_of_interest, surface_database, export_results, export_img_predictions):
     # write results to shapefile
-    output_folder = root_path / "data" / "output"
-    os.makedirs(output_folder, exist_ok=True)
-    run = f"_{area_of_interest.run}" if area_of_interest.run else ""
-    output_file = output_folder / f"{area_of_interest.name}{run}_surfaceai.shp"
-    logging.info(f"Write results to shapefile {output_file}.")
+    if export_results or export_img_predictions:
+        output_folder = root_path / "data" / "output"
+        os.makedirs(output_folder, exist_ok=True)
+        run = f"_{area_of_interest.run}" if area_of_interest.run else ""
 
-    # surface_database.table_to_shapefile(
-    #     f"{area_of_interest.name}_group_predictions", output_file
-    # )
+    if export_results:
+        output_file = output_folder / f"{area_of_interest.name}{run}_surfaceai.shp"
+        logging.info(f"Write results to {output_file}.")
+        area_of_interest.road_network_to_shapefile(surface_database, output_file, with_osm_groundtruth=False)
 
-    output_file = output_folder / f"{area_of_interest.name}{run}_img_metadata.shp"
-    area_of_interest.imgs_to_shapefile(surface_database, output_file)
+    if export_img_predictions:
+        output_file = output_folder / f"{area_of_interest.name}{run}_img_predictions.shp"
+        logging.info(f"Write image predictions to {output_file}.")
+        area_of_interest.imgs_to_shapefile(surface_database, output_file)
 
-    output_file = output_folder / f"{area_of_interest.name}{run}_surfaceai_gt.shp"
-    area_of_interest.road_network_with_osm_groundtruth(surface_database, output_file)
 
 
 if __name__ == "__main__":
@@ -151,15 +149,18 @@ if __name__ == "__main__":
 
     # load config
     parser = argparse.ArgumentParser(prog="surfaceAI")
-    parser.add_argument("-c", "--configfile")
+    parser.add_argument("-c", "--configfile", help="Name of the configuration file in the configs folder. Default. Required argument.")
     parser.add_argument(
-        "--recreate_roads", action=argparse.BooleanOptionalAction, default=False
+        "--recreate_roads", action=argparse.BooleanOptionalAction, default=False, help="If False, omit preprocessing or road segments if already present in database (to save time given multiple runs on the same area of interest)."
     )
     parser.add_argument(
-        "--query_images", action=argparse.BooleanOptionalAction, default=True
+        "--query_images", action=argparse.BooleanOptionalAction, default=True, help="If False, skip classification of newly queried images and only use existing image classifications in database."
     )
     parser.add_argument(
-        "--export_results", action=argparse.BooleanOptionalAction, default=True
+        "--export_results", action=argparse.BooleanOptionalAction, default=True, help="Export results to Shapefile"
+    )
+    parser.add_argument(
+        "--export_img_predictions", action=argparse.BooleanOptionalAction, default=False, help="Export single image predictions to Shapefile"
     )
     args = parser.parse_args()
 

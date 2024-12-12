@@ -131,27 +131,64 @@ You can overwrite any parameter in the specific config. E.g., the `dist_to_road`
 **Arguments for command-line options for main.py**
 
 ```
-usage: surfaceAI [-h] [-c CONFIGFILE] [--recreate_roads | --no-recreate_roads] [--query_images | --no-query_images] [--export_results | --no-export_results]
+    usage: surfaceAI [-h] [-c CONFIGFILE] [--recreate_roads | --no-recreate_roads] [--query_images | --no-query_images] [--export_results | --no-export_results] [--export_img_predictions | --no-export_img_predictions]
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -c CONFIGFILE, --configfile CONFIGFILE
-                        Name of the configuration file in the configs folder. Default. Required argument.
-  --recreate_roads, --no-recreate_roads
-                        If False, skip classification of newly queried images and only use existing image classifications in database. (default: False)
-  --query_images, --no-query_images
-                        If False, skip querying new images and only use existing image metadata in database. (default: True)
-  --export_results, --no-export_results
-                        Export results to Shapefile. (default: True)
+    optional arguments:
+    -h, --help            show this help message and exit
+    -c CONFIGFILE, --configfile CONFIGFILE
+                            Name of the configuration file in the configs folder. Required argument.
+    --recreate_roads, --no-recreate_roads
+                            If False, omit preprocessing or road segments if already present in database (to save time given multiple runs on the same area of interest). (default: False)
+    --query_images, --no-query_images
+                            If False, skip classification of newly queried images and only use existing image classifications in database. (default: True)
+    --export_results, --no-export_results
+                            Export results to Shapefile (default: True)
+    --export_img_predictions, --no-export_img_predictions
+                            Export single image predictions to Shapefile (default: False)
 ```
 
 
+## Output
+
+### Road network classification
+
+The created surfaceai output shapefile includes the following attributes:
+
+- **ID**: (OSM) way ID
+- **PART_ID**: partition ID - if multiple road types are present for a single OSM geometry (e.g.: OSM tag `sidewalk = right` present), the road is duplicated and shifted, according to the road type. Additionally, the `road_type`attribute is adjusted. The following partition IDs are set: 
+    - `1`: `default` (according to `highway` tag of a geometry)
+    - `2`: `sidewalk = 'right'` -> footway
+    - `3`: `sidewalk = 'left'` -> footway
+    - `4`: `cycleway_right = 'lane'` -> bike_lane
+    - `5`: `cycleway_left = 'lane'` -> bike_lane
+    - `6`: `cycleway_right = 'track'`-> cycleway
+    - `7`: `cycleway_left = 'track'`-> cycleway
+- **GROUP_NUM**: enumeration of divisions of the original geometry based on `segments_per_group`(see above)
+- **TYPE_PRED**: surface type prediction (see below)
+- **CONF_SCORE**: confidence score of surface type (*share of subsegments consistent with predicted type multiplied by share of images consistent with predicted type*)
+- **QUALI_PRED**: surface quality prediction (see below)
+- **N_IMGS**: number of images considered for the respective road segment
+- **MIN_DATE**: earliest capture date of considered images for respective road segment
+- **MAX_DATE**: most recent capture date of considered images for respective road segment
+- **ROAD_TYPE**: road type (options: ["road", "footway", "bike_lane", "cycleway", "path"]) based on OSM data simplified to the stated options 
+- **GEOM**: Linestring geometry
+
+### Single image classification
+
+If results of single image classification are exported, the respective shapefile contains the following attributes:
+
+- **IMG_ID**: Mapillary image id
+- **DATE**: capture date of image according to Mapillary
+- **ROADT_PRED**: road type prediction according to the classification model, simplified into the following options: ["road", "footway", "bike_lane", "cycleway", "path"]
+- **ROADT_PROB**: class probability of the predicted road type class according to the classification model
+- **TYPE_PRED**: surface type prediction according to the classification model
+- **TYPE_PROB**: class probability of the predicted surface type class according to the classification model
+- **QUALI_PRED**: quality prediction according to the regression model
 
 
 ## Implementation details
 
 ### Pipeline:
-
 
 - setup Postgres database with PostGIS and osmosis extension
 - query all image metadata within the provided bounding box from Mapillary and write to database
@@ -172,13 +209,16 @@ The aggregation algorithm runs as follows:
 - aggregate images on subsegments; only use images that are either not within the vicinity of another road (part) or where the road scene classification matches the road type of the segment
     - surface type: majority vote
     - surface quality: average
-- aggregate all subsegments on road segment
+- aggregate all subsegments on road segment (or group, if `segments_per_group` is given)
     - surface type: majority vote (if tied, also use image counts)
     - surface quality: average
-- futher attributes that are created per road segment:
-    - min. and max. capture date of considered images
-    - image count
-    - confidence score of surface type (*share of subsegments consistent with predicted type multiplied by share of images consistent with predicted type*)
+
+Set predition to `null` if 
+- remove predictions where there is no prediction for respective road type every 30 meters 
+- or less than 50% of segments are of predicted type 
+- or if there is less than 3 images
+
+
 
 
 

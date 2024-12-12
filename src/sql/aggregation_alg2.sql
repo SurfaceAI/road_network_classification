@@ -94,8 +94,8 @@ from {name}_img_selection img
         img.segment_id,
         img.part_id,
         img.type_pred,
-        to_timestamp(MIN(img.captured_at) / 1000) as min_captured_at,
-        to_timestamp(MAX(img.captured_at) / 1000) as max_captured_at,
+        to_timestamp(MIN(img.captured_at) / 1000) as min_date,
+        to_timestamp(MAX(img.captured_at) / 1000) as max_date,
         COUNT(*) AS vote_count,
         AVG(img.type_class_prob) AS avg_class_prob
     FROM
@@ -133,10 +133,10 @@ TopRankedVotes AS (
         TRV.part_id,
         SUM(TRV.vote_count) as vote_count, -- how many votes this this surface type?
         AVG(TRV.img_counts) as avg_img_counts, -- how many imgs per subsegment on average for this road type?
-        SUM(TRV.img_counts) as sum_img_counts, -- sum of all images for this road type
+        SUM(TRV.img_counts) as n_imgs, -- sum of all images for this road type
         AVG(TRV.rt_share) as avg_rt_share,
-        MIN(TRV.min_captured_at) as min_captured_at,
-        MAX(TRV.max_captured_at) as max_captured_at,
+        MIN(TRV.min_date) as min_date,
+        MAX(TRV.max_date) as max_date,
         COUNT(*) AS segment_vote_count
         --AVG(TRV.type_class_prob) AS avg_class_prob -- todo: weighted avg?
     FROM

@@ -173,12 +173,13 @@ class AreaOfInterest:
             db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
             # print(f"db insert {time.time() - start}")
 
-        db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, self.query_params)
 
     def imgs_to_shapefile(self, db, output_path):
         query = f"""
         DROP TABLE IF EXISTS temp_imgs;
-        SELECT meta.*, cl.road_type_pred, cl.road_type_prob, cl.type_pred, cl.type_class_prob, cl.quality_pred
+        SELECT meta.img_id, to_timestamp((meta.captured_at ) / 1000) as date, cl.road_type_pred as roadt_pred, 
+        cl.road_type_prob as roadt_prob, cl.type_pred, cl.type_class_prob as type_prob, cl.quality_pred as quali_pred,
+        meta.geom
 		INTO TABLE temp_imgs
 	    FROM {self.name}_img_metadata meta 
 	    JOIN {self.name}_img_classifications cl 
@@ -187,12 +188,20 @@ class AreaOfInterest:
         db.table_to_shapefile("temp_imgs", output_path)
         db.execute_sql_query("DROP TABLE temp_imgs;", is_file=False)
 
-    def road_network_with_osm_groundtruth(self, db, output_path):
+    def road_network_to_shapefile(self, db, output_path, with_osm_groundtruth):
         db.execute_sql_query(const.SQL_CLEAN_SURFACE, self.query_params)
+
+        columns = """gp.id, gp.part_id, gp.group_num, 
+                        gp.type_pred, gp.conf_score, 
+                        gp.quali_pred, 
+                        gp.n_imgs, gp.min_date, gp.max_date, 
+                        gp.road_type, gp.geometry"""
+        if with_osm_groundtruth:
+            columns += ", ws.surface_clean, ws.smoothness"
 
         query = f"""
         DROP TABLE IF EXISTS temp_rn;
-        SELECT gp.*, ws.surface_clean, ws.smoothness
+        SELECT {columns}
 		INTO TABLE temp_rn
 	    FROM {self.name}_group_predictions gp 
 	    JOIN {self.name}_way_selection ws 

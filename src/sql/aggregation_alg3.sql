@@ -1,7 +1,7 @@
 
 ---- join img and groups and aggregate with majority vote
 ALTER TABLE {name}_group_predictions
-add column if not exists avg_quality_pred float,
+add column if not exists quali_pred float,
 add column if not exists way_length float,
 add column if not exists conf_score float,
 add column if not exists n_segments int;
@@ -28,7 +28,7 @@ WHERE ways.id = SC.way_id and ways.group_num = SC.group_num and ways.part_id = S
 delete from {name}_group_predictions ways
 where (ways.way_length / ways.n_segments  > 30) 
     or (cast(ways.segment_vote_count as float) / cast( ways.n_segments as float) < 0.5) 
-    or sum_img_counts < 3;
+    or n_imgs < 3;
 -- remove predictions where there is no prediction for respective road type every 30 meters 
 -- or less than 50% of segments are of predicted type 
 -- or if there is less than 3 images
@@ -55,12 +55,11 @@ WHERE (id, group_num, part_id, conf_score) NOT IN (
 
 
 -- quality info
-
 WITH QualityAvg AS (
-    SELECT way_id, group_num, part_id, AVG(img.quality_pred) AS avg_quality_pred, type_pred
+    SELECT way_id, group_num, part_id, AVG(img.quality_pred) AS quali_pred, type_pred
     FROM {name}_img_selection img GROUP BY way_id, group_num, part_id, type_pred)
 UPDATE {name}_group_predictions ways
-SET avg_quality_pred = QA.avg_quality_pred
+SET quali_pred = QA.quali_pred
 FROM QualityAvg QA
 WHERE ways.id = QA.way_id 
     and ways.part_id = QA.part_id 
@@ -80,9 +79,9 @@ select {grouping_ids}, road_type, geometry from MissingGroups;
 --select MG.id, MG.group_num, MG.part_id, MG.road_type, MG.geometry from MissingGroups as MG;
 
 -- only keep one prediction for each way (if multiple road types are specified as target, i.e., via partition id
--- then keep one prediciton per partition)
+-- then keep one prediction per partition)
 -- keep the one with most segment vote counts // then with most average image counts
--- this is only needed of no target type is given (typically not an issue for OSM)
+-- this is only needed if no target type is given (typically not an issue for OSM)
 CREATE TABLE RowsToKeep as
  WITH RankedRows AS (
     SELECT *,
@@ -95,10 +94,10 @@ CREATE TABLE RowsToKeep as
 )  
     SELECT {grouping_ids}, type_pred, 
     segment_vote_count, avg_rt_share, conf_score, 
-    avg_quality_pred, 
+    quali_pred, 
     road_type, 
-    n_segments, avg_img_counts, sum_img_counts, 
-    min_captured_at, max_captured_at, geom_4326 as geometry
+    n_segments, avg_img_counts, n_imgs, 
+    min_date, max_date, geom_4326 as geometry
     FROM RankedRows
     WHERE row_num = 1
  ;
