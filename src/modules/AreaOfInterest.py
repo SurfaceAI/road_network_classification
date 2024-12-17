@@ -197,7 +197,7 @@ class AreaOfInterest:
                         gp.n_imgs, gp.min_date, gp.max_date, 
                         gp.road_type, gp.geometry"""
         if with_osm_groundtruth:
-            columns += ", ws.surface_clean, ws.smoothness"
+            columns += ", ws.surface_clean as osm_surf, ws.smoothness as osm_smooth"
 
         query = f"""
         DROP TABLE IF EXISTS temp_rn;

@@ -37,5 +37,5 @@
         "resize": 384,
         "crop": "lower_half"
     },
-    "batch_size": 48
+    "batch_size": 512
 }
