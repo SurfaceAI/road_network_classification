@@ -26,7 +26,7 @@ def run_pipeline(args, root_path):
         )
 
     has_road_seg_table = db.table_exists(f"{aoi.name}_way_selection")
-    if not has_road_seg_table or args.recreate_roads:
+    if not has_road_seg_table | args.recreate_roads:
         logging.info("Create road segments in bounding box.")
         query_path = (
             const.SQL_WAY_SELECTION if db.osm_region else const.SQL_WAY_SELECTION_CUSTOM

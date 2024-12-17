@@ -164,14 +164,14 @@ The created surfaceai output shapefile includes the following attributes:
     - `6`: `cycleway_right = 'track'`-> cycleway
     - `7`: `cycleway_left = 'track'`-> cycleway
 - **GROUP_NUM**: enumeration of divisions of the original geometry based on `segments_per_group`(see above)
-- **TYPE_PRED**: surface type prediction (see below)
-- **CONF_SCORE**: confidence score of surface type (*share of subsegments consistent with predicted type multiplied by share of images consistent with predicted type*)
-- **QUALI_PRED**: surface quality prediction (see below)
+- **TYPE_PRED**: aggregated surface type prediction (options: asphalt, concrete, sett, paving_stones, unpaved) (see below)
+- **CONF_SCORE**: confidence score for surface type prediction quantifying the consistency of single image predictions; range 0 (low confidence) - 1 (high confidence)
+- **QUALI_PRED**: surface quality prediction averaged over quality predictions of images with similar type prediction, lower values indicate higher quality (see below)
 - **N_IMGS**: number of images considered for the respective road segment
 - **MIN_DATE**: earliest capture date of considered images for respective road segment
 - **MAX_DATE**: most recent capture date of considered images for respective road segment
 - **ROAD_TYPE**: road type (options: ["road", "footway", "bike_lane", "cycleway", "path"]) based on OSM data simplified to the stated options 
-- **GEOM**: Linestring geometry
+- **GEOM**: Linestring geometry (WGS 84, EPSG: 4326)
 
 ### Single image classification
 
@@ -218,7 +218,8 @@ Set prediction to `null` if
 - or less than 50% of subsegments are of predicted type 
 - or if there is less than 3 images for the entire segment/group
 
-
+Computation of the **confidence score**:
+*'share of subsegments consistent with predicted type'* *   *'share of images consistent with predicted type'*
 
 
 
