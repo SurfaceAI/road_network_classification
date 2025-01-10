@@ -17,7 +17,7 @@ def run_pipeline(args, root_path):
     db, aoi, mi, md = setup_pipeline(cg, credentials)
 
     has_img_metadata = db.table_exists(f"{aoi.name}_img_metadata")
-    if (not has_img_metadata) | args.query_images:
+    if (not has_img_metadata) or args.query_images:
         logging.info(f"query img metadata and store in database {db.dbname}")
         aoi.get_and_write_img_metadata(mi, db)
     else:
@@ -26,7 +26,7 @@ def run_pipeline(args, root_path):
         )
 
     has_road_seg_table = db.table_exists(f"{aoi.name}_way_selection")
-    if not has_road_seg_table | args.recreate_roads:
+    if (not has_road_seg_table) or args.recreate_roads:
         logging.info("Create road segments in bounding box.")
         query_path = (
             const.SQL_WAY_SELECTION if db.osm_region else const.SQL_WAY_SELECTION_CUSTOM
