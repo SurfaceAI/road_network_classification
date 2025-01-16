@@ -114,8 +114,8 @@ class MapillaryInterface:
                         ]
                     )
                 return (header, output)
-            except:
-                logging.warning(f"Invalid response for header {header}")
+            except Exception as e:
+                logging.warning(f"Invalid response for header {header} with error:\n{e}")
                 return (header, None)
 
     def query_img(self, img_id, img_size):
@@ -135,9 +135,8 @@ class MapillaryInterface:
                         return Image.open(io.BytesIO(response.content))
                 else:
                     logging.info(f"no image size {img_size} for image {img_id}")
-            except:
-                response.encoding = 'utf-8'
-                logging.warning(f"Invalid response for image {img_id}: {response.text[:100]}...")
+            except Exception as e:
+                logging.warning(f"Invalid response for image {img_id} with error:\n{e}")
         return None
 
     def query_imgs(self, img_ids, img_size):
