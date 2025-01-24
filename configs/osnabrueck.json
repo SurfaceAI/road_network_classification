@@ -1,0 +1,9 @@
+{
+    "name": "osnabrueck",
+    "run": "osm_seg",
+    "minLon": 7.9297121,
+    "minLat": 52.2175488,
+    "maxLon": 8.1806602,
+    "maxLat": 52.3374348,
+    "segments_per_group": null
+}

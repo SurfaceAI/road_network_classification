@@ -1,0 +1,9 @@
+{
+    "name": "muenchen_all",
+    "run": "osm_seg",
+    "minLon": 11.3607770,
+    "minLat": 48.0616244,
+    "maxLat": 48.2481162,
+    "maxLon": 11.7229099,
+    "segments_per_group": null
+}

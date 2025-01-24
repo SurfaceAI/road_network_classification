@@ -1,0 +1,9 @@
+{
+    "name": "neukoelln",
+    "run": "osm_seg",
+    "minLon": 13.40607,
+    "minLat": 52.45876,
+    "maxLon": 13.47855,
+    "maxLat": 52.4958650,
+    "segments_per_group": null
+}
