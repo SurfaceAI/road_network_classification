@@ -205,8 +205,7 @@ class AreaOfInterest:
 		INTO TABLE temp_rn
 	    FROM {self.name}_group_predictions gp 
 	    JOIN {self.name}_way_selection ws 
-	    ON gp.id=ws.id
-        WHERE part_id=1;"""
+	    ON gp.id=ws.id;"""
         db.execute_sql_query(query, is_file=False)
         db.table_to_shapefile("temp_rn", output_path)
         db.execute_sql_query("DROP TABLE temp_rn;", is_file=False)
