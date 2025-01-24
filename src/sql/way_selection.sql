@@ -2,13 +2,14 @@ drop table if exists {name}_way_selection;
 drop table if exists way_nodes_selection;
 drop table if exists node_selection;
 drop table if exists ways_selection;
+drop table if exists way_geometries;
 
 CREATE TEMP TABLE node_selection AS
 SELECT *, 
 st_transform(geom, {crs}) AS geom_transformed
- FROM nodes WHERE ST_Within(
+FROM nodes WHERE ST_Within(
         geom,
-         ST_SetSRID(ST_MakeEnvelope({bbox0}, {bbox1}, {bbox2}, {bbox3}), 4326)
+        ST_SetSRID(ST_MakeEnvelope({bbox0}, {bbox1}, {bbox2}, {bbox3}), 4326)
     ); 
 CREATE INDEX IF NOT EXISTS node_selection_idx ON node_selection (id);
 
@@ -26,7 +27,15 @@ JOIN way_nodes_selection ON ways.id = way_nodes_selection.way_id
 where ways.tags -> 'highway' not in ('construction', 'proposed', 'corridor', 'service'); -- exclude service ways
 
 
--- this step takes some time when bbox is large (38 min for Dresden BBox)
+CREATE TEMP TABLE way_geometries AS
+SELECT wns.way_id, 
+        ST_LineFromMultiPoint(
+            ST_Collect(ns.geom_transformed ORDER BY wns.sequence_id)
+        ) AS geom
+FROM node_selection AS ns
+JOIN way_nodes_selection AS wns ON ns.id = wns.node_id
+GROUP BY wns.way_id;
+
 create table {name}_way_selection  as
 select id, ways_selection.tags->'surface' as surface, 
 ways_selection.tags ->'smoothness' as smoothness, 
@@ -39,16 +48,16 @@ ways_selection.tags -> 'sidewalk' as sidewalk,
 ways_selection.tags -> 'sidewalk:right' as sidewalk_right,
 ways_selection.tags -> 'sidewalk:left' as sidewalk_left,
 ways_selection.tags -> 'foot' as foot,
-(select ST_LineFromMultiPoint( ST_Collect(ns.geom_transformed order by wns.sequence_id))  AS geom
-from node_selection as ns 
-join way_nodes_selection as wns on ns.id=wns.node_id where wns.way_id=ways_selection.id ) 
-FROM ways_selection;
+wg.geom
+FROM ways_selection
+JOIN way_geometries as wg ON ways_selection.id = wg.way_id;
 
 CREATE INDEX {name}_way_selection_idx ON {name}_way_selection USING GIST(geom);
 
 drop table ways_selection;
 drop table way_nodes_selection;
 drop table node_selection;
+drop table if exists way_geometries;
 
 alter table {name}_way_selection add column if not exists road_type varchar;
 

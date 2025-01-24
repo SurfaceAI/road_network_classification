@@ -39,7 +39,6 @@ class MapillaryInterface:
     def query_mapillary(
         self, request_url, request_params, request_timeout=10, max_retries=10
     ):
-        max_retries = 10
         retries = 0
         while retries < max_retries:
             try:
@@ -96,24 +95,28 @@ class MapillaryInterface:
         if response is None:
             return (header, None)
         else:
-            data = vt_bytes_to_geojson(
-                response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
-            )
-            # a feature is a point/image
-            for feature in data["features"]:
-                output.append(
-                    [
-                        feature["properties"]["id"],
-                        feature["properties"]["sequence_id"],
-                        feature["properties"]["captured_at"],
-                        feature["properties"]["compass_angle"],
-                        feature["properties"]["is_pano"],
-                        feature["properties"]["creator_id"],
-                        feature["geometry"]["coordinates"][0],
-                        feature["geometry"]["coordinates"][1],
-                    ]
+            try:
+                data = vt_bytes_to_geojson(
+                    response.content, tile.x, tile.y, tile.z, layer=const.TILE_LAYER
                 )
-            return (header, output)
+                # a feature is a point/image
+                for feature in data["features"]:
+                    output.append(
+                        [
+                            feature["properties"]["id"],
+                            feature["properties"]["sequence_id"],
+                            feature["properties"]["captured_at"],
+                            feature["properties"]["compass_angle"],
+                            feature["properties"]["is_pano"],
+                            feature["properties"]["creator_id"],
+                            feature["geometry"]["coordinates"][0],
+                            feature["geometry"]["coordinates"][1],
+                        ]
+                    )
+                return (header, output)
+            except Exception as e:
+                logging.warning(f"Invalid response for header {header} with error:\n{e}")
+                return (header, None)
 
     def query_img(self, img_id, img_size):
         response = self.query_mapillary(
@@ -124,13 +127,16 @@ class MapillaryInterface:
             },
         )
         if response is not None:
-            data = response.json()
-            if img_size in data:
-                response = self.query_mapillary(data[img_size], {})
-                if response is not None:
-                    return Image.open(io.BytesIO(response.content))
-            else:
-                logging.info(f"no image size {img_size} for image {img_id}")
+            try:
+                data = response.json()
+                if img_size in data:
+                    response = self.query_mapillary(data[img_size], {})
+                    if response is not None:
+                        return Image.open(io.BytesIO(response.content))
+                else:
+                    logging.info(f"no image size {img_size} for image {img_id}")
+            except Exception as e:
+                logging.warning(f"Invalid response for image {img_id} with error:\n{e}")
         return None
 
     def query_imgs(self, img_ids, img_size):
