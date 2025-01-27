@@ -28,6 +28,7 @@ WITH GroupedSegments AS (
 )
 SELECT *
 FROM GroupedSegments;
+WHERE ST_SRID(geometry) != 0;
 
 
 CREATE INDEX {name}_eval_groups_idx ON {name}_eval_groups ({grouping_ids});
