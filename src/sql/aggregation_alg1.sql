@@ -27,7 +27,7 @@ WITH GroupedSegments AS (
     GROUP BY {grouping_ids}, road_type
 )
 SELECT *
-FROM GroupedSegments;
+FROM GroupedSegments
 WHERE ST_SRID(geometry) != 0;
 
 
