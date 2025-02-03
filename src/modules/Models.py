@@ -193,7 +193,7 @@ class CustomEfficientNetV2SLinear(nn.Module):
     def __init__(self, num_classes, class_to_idx={}, avg_pool=1):
         super(CustomEfficientNetV2SLinear, self).__init__()
 
-        model = models.efficientnet_v2_s(weights="IMAGENET1K_V1")
+        model = models.efficientnet_v2_s()
         # adapt output layer
         in_features = model.classifier[-1].in_features * (avg_pool * avg_pool)
         fc = nn.Linear(in_features, num_classes, bias=True)
