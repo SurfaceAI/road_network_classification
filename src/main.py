@@ -13,7 +13,11 @@ from modules import SurfaceDatabase as sd
 
 
 def run_pipeline(args, root_path):
-    cg, credentials = get_config(args.configfile, root_path)
+
+    configfile = args.configfile if args.configfile else None
+    config_dict = json.loads(args.configdict) if args.configdict else None
+    
+    cg, credentials = get_config(root_path, configfile, config_dict)
     db, aoi, mi, md = setup_pipeline(cg, credentials)
 
     has_img_metadata = db.table_exists(f"{aoi.name}_img_metadata")
@@ -21,9 +25,9 @@ def run_pipeline(args, root_path):
         logging.info(f"query img metadata and store in database {db.dbname}")
         aoi.get_and_write_img_metadata(mi, db)
     else:
-        logging.info(
-            "Configured to not query new image metadata. Skip image metadata download."
-        )
+       logging.info(
+           "Configured to not query new image metadata. Skip image metadata download."
+    )
 
     has_road_seg_table = db.table_exists(f"{aoi.name}_way_selection")
     if (not has_road_seg_table) or args.recreate_roads:
@@ -51,7 +55,6 @@ def run_pipeline(args, root_path):
         )
     db.execute_sql_query(const.SQL_RENAME_ROAD_TYPE_PRED, aoi.query_params)
 
-
     db.execute_sql_query(const.SQL_PREPARE_PARTITIONS, aoi.query_params)
     if db.osm_region is not None:  # is OSM file?
         logging.info("Create partitions for each road type of a road segment.")
@@ -71,21 +74,22 @@ def run_pipeline(args, root_path):
     results_to_files(aoi, db, args.export_results, args.export_img_predictions)
 
 
-def get_config(configfile, root_path):
+def get_config(root_path, configfile=None, config_dict=None):
 
     global_config_path = root_path / "configs" / "00_global_config.json"
     credentials_path = root_path / "configs" / "02_credentials.json"
+    if configfile is None and config_dict is None:
+        raise ValueError("Either configfile or configdict must be provided.")
+    elif configfile is not None and config_dict is not None:
+        logging.warning("Both configfile and config_dict provided. Using configfile.")
     if configfile is not None:
         config_path = root_path / "configs" / f"{configfile}.json"
-    else:
-        config_path = root_path / "configs" / "dresden_small.json"
-
+        with open(config_path, "r") as config_file:
+            config_dict = json.load(config_file)
     # Read and parse the JSON configuration file
     with open(global_config_path, "r") as config_file:
         global_cg = json.load(config_file)
-    with open(config_path, "r") as config_file:
-        cg = json.load(config_file)
-    cg = {**global_cg, **cg}
+    cg = {**global_cg, **config_dict}
     with open(credentials_path, "r") as cred_file:
         credentials = json.load(cred_file)
 
@@ -96,7 +100,7 @@ def setup_pipeline(cg, credentials):
     mi_params = {
         key: value
         for key, value in {**cg, **credentials}.items()
-        if key in ["mapillary_token", "parallel", "parallel_batch_size"]
+        if key in ["mapillary_token", "mapillary_client_token", "parallel", "parallel_batch_size"]
     }
     mapillary_interface = mi.MapillaryInterface(**mi_params)
 
@@ -135,7 +139,7 @@ def results_to_files(area_of_interest, surface_database, export_results, export_
     if export_results:
         output_file = output_folder / f"{area_of_interest.name}{run}_surfaceai.shp"
         logging.info(f"Write results to {output_file}.")
-        area_of_interest.road_network_to_shapefile(surface_database, output_file, with_osm_groundtruth=False)
+        area_of_interest.road_network_to_shapefile(surface_database, output_file, with_osm_groundtruth=True)
 
     if export_img_predictions:
         output_file = output_folder / f"{area_of_interest.name}{run}_img_predictions.shp"
@@ -149,7 +153,8 @@ if __name__ == "__main__":
 
     # load config
     parser = argparse.ArgumentParser(prog="surfaceAI")
-    parser.add_argument("-c", "--configfile", help="Name of the configuration file in the configs folder. Default. Required argument.")
+    parser.add_argument("-c", "--configfile", default=None, help="Name of the configuration file in the configs folder.")
+    parser.add_argument("-cd", "--configdict", default=None, help="Dictionary of configuration parameters.")
     parser.add_argument(
         "--recreate_roads", action=argparse.BooleanOptionalAction, default=False, help="If False, omit preprocessing or road segments if already present in database (to save time given multiple runs on the same area of interest)."
     )
