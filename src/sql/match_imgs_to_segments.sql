@@ -3,6 +3,7 @@ SELECT
   img_id,
   sequence_id,
   captured_at,
+  creator_id,
   st_transform(geom, {crs}) AS geom
 FROM
   {name}_img_metadata;
@@ -18,6 +19,7 @@ CREATE TABLE temp_table AS (
       img_id,
       p.sequence_id,
       p.captured_at,
+      p. creator_id,
       seg.way_id,
       seg.segment_id,
       p.geom,
