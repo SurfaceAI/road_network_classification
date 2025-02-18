@@ -246,11 +246,27 @@ class SurfaceDatabase:
             executable="/bin/bash",
         )
 
+
+    def img_ids_in_table(self, db_table, img_ids):
+        conn = self._create_dbconnection()
+
+        with conn.cursor(cursor_factory=DictCursor) as cursor:
+            cursor.execute(sql.SQL(f"create index if not exists {db_table}_idx on {db_table} (img_id);"))
+            cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table} where img_id in %s"), (tuple(img_ids),))
+            #img_ids = [row['img_id'] for row in cursor.fetchall()]
+            img_ids = cursor.fetchall()
+            img_ids = [img_id[0] for img_id in img_ids]
+        conn.close()
+        return img_ids
+    
+
     def img_ids_from_dbtable(self, db_table):
         conn = self._create_dbconnection()
 
         with conn.cursor(cursor_factory=DictCursor) as cursor:
-            img_ids = cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table}"))
+            cursor.execute(sql.SQL(f"create index if not exists {db_table}_idx on {db_table} (img_id);"))
+            cursor.execute(sql.SQL(f"SELECT img_id FROM {db_table}"))
+            #img_ids = [row['img_id'] for row in cursor.fetchall()]
             img_ids = cursor.fetchall()
             img_ids = [img_id[0] for img_id in img_ids]
         conn.close()

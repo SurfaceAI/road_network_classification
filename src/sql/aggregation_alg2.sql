@@ -42,7 +42,7 @@ WITH ImgMetadataClassification AS (
         res.type_class_prob,
         res.quality_pred
     FROM {name}_img_metadata img
-    INNER JOIN {name}_img_classifications res
+    INNER JOIN img_classifications res
     ON img.img_id = res.img_id
 )
 	SELECT img.*,

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import mercantile
 import numpy as np
+import multiprocessing
 
 # local modules
 src_dir = Path(os.path.abspath(__file__)).parent.parent
@@ -103,23 +104,12 @@ class AreaOfInterest:
             "min_road_length": self.min_road_length,
         }
 
-    def get_and_write_img_metadata(self, mi, db):
-        # get all relevant tile ids
-        db.execute_sql_query(const.SQL_CREATE_IMG_METADATA_TABLE, self.query_params)
-
-        tiles = list(
-            mercantile.tiles(
-                self.minLon, self.minLat, self.maxLon, self.maxLat, const.ZOOM
-            )
-        )
-
-        for i in tqdm(range(0, len(tiles))):
-            # TODO: parallellize?
-            tile = tiles[i]
-            header, output = mi.metadata_in_tile(tile)
-            rows = np.array(output)
-            if len(rows) == 0:
-                continue
+    def get_and_write_tile(self, args):
+        mi, db, tile, lock = args
+        header, output = mi.metadata_in_tile(tile)
+        rows = np.array(output)
+        if len(rows) > 0:
+            # make sure the image is within the bounding box
             rows = rows[
                 (rows[:, header.index("lon")].astype(float) >= self.minLon)
                 & (rows[:, header.index("lon")].astype(float) <= self.maxLon)
@@ -131,58 +121,94 @@ class AreaOfInterest:
             if self.userid and len(rows) > 0:
                 rows = rows[rows[:, header.index("creator_id")] == self.userid]
             if len(rows) > 0:
-                db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
+                # for parellel processing, lock the database
+                if lock:
+                    with lock:
+                        db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
+                else:
+                    db.add_rows_to_table(f"{self.name}_img_metadata", header, rows)
+
+
+    def get_and_write_img_metadata(self, mi, db):
+        db.execute_sql_query(const.SQL_CREATE_IMG_METADATA_TABLE, self.query_params)
+
+        # get all relevant tile ids
+        tiles = list(
+            mercantile.tiles(
+                self.minLon, self.minLat, self.maxLon, self.maxLat, const.ZOOM
+            )
+        )
+
+        if mi.parallel:
+            # Create a pool of worker processes
+            workers = np.min([mi.parallel_batch_size, len(tiles)])
+            with multiprocessing.Pool(processes=workers) as pool:
+                lock = multiprocessing.Manager().Lock()
+                for _ in tqdm(pool.imap_unordered(self.get_and_write_tile, [(mi, db, tiles[i], lock) for i in range(0, len(tiles))]), 
+                            total=len(tiles)):
+                    pass
+        else:
+            for tile in tqdm(tiles, desc="Download metadata"):
+                self.get_and_write_tile([mi, db, tile, None])
+
         db.execute_sql_query(const.SQL_ADD_GEOM_COLUMN, self.query_params)
+
+
 
     def classify_images(self, mi, db, md):
         img_ids = db.img_ids_from_dbtable(f"{self.name}_img_metadata")
-        if db.table_exists(f"{self.name}_img_classifications"):
-            existing_img_ids = db.img_ids_from_dbtable(
-                f"{self.name}_img_classifications"
-            )
-            logging.info(f"existing classified images: {len(existing_img_ids)}")
+        if db.table_exists(f"img_classifications"):
+            # TODO: only query img_ids_in_table_in_bbox to speed up 
+            existing_img_ids = db.img_ids_in_table("img_classifications", img_ids)
+
+            logging.info(f"{len(set(img_ids).intersection(set(existing_img_ids)))} of {len(img_ids)} images already classified")
             img_ids = list(set(img_ids) - set(existing_img_ids))
 
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
-        for i in tqdm(
-            range(0, len(img_ids), md.batch_size),
-            desc=f"Download and classify {len(img_ids)} images",
-        ):
-            j = min(i + md.batch_size, len(img_ids))
+        if len(img_ids) == 0:
+            for i in tqdm(
+                range(0, len(img_ids), md.batch_size),
+                desc=f"Download and classify {len(img_ids)} images",
+            ):
+                j = min(i + md.batch_size, len(img_ids))
 
-            img_data = mi.query_imgs(
-                img_ids[i:j],
-                self.img_size,
-            )
-            model_output = md.batch_classifications(img_data)
+                img_data = mi.query_imgs(
+                    img_ids[i:j],
+                    self.img_size,
+                )
+                model_output = md.batch_classifications(img_data)
 
-            # add img_id to model_output
-            # start = time.time()
-            value_list = [
-                [img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)
-            ]
-            header = [
-                "img_id",
-                "road_type_pred",
-                "road_type_prob",
-                "type_pred",
-                "type_class_prob",
-                "quality_pred",
-            ]
-            db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
-            # print(f"db insert {time.time() - start}")
+                # add img_id to model_output
+                # start = time.time()
+                value_list = [
+                    [img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)
+                ]
+                header = [
+                    "img_id",
+                    "road_type_pred",
+                    "road_type_prob",
+                    "type_pred",
+                    "type_class_prob",
+                    "quality_pred",
+                ]
+                db.add_rows_to_table(f"img_classifications", header, value_list)
+                # print(f"db insert {time.time() - start}")
 
 
     def imgs_to_shapefile(self, db, output_path):
         query = f"""
         DROP TABLE IF EXISTS temp_imgs;
-        SELECT meta.img_id, to_timestamp((meta.captured_at ) / 1000) as date, cl.road_type_pred as roadt_pred, 
-        cl.road_type_prob as roadt_prob, cl.type_pred, cl.type_class_prob as type_prob, cl.quality_pred as quali_pred,
-        meta.geom
+        SELECT meta.img_id, to_timestamp((meta.captured_at ) / 1000) as date, 
+        cl.road_type_pred as roadt_pred, 
+        cl.road_type_prob as roadt_prob, 
+        cl.type_pred, 
+        cl.type_class_prob as type_prob, 
+        cl.quality_pred as quali_pred,
+        st_transform(meta.geom, 4326)
 		INTO TABLE temp_imgs
 	    FROM {self.name}_img_metadata meta 
-	    JOIN {self.name}_img_classifications cl 
+	    JOIN img_classifications cl 
 	    ON meta.img_id=cl.img_id;"""
         db.execute_sql_query(query, is_file=False)
         db.table_to_shapefile("temp_imgs", output_path)
