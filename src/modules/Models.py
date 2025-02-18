@@ -31,6 +31,9 @@ class ModelInterface:
         transform["normalize"] = normalization
         self.transform_road_type = transform
         self.model_root = config.get("model_root")
+        if not os.path.isabs(self.model_root):
+            root_path = Path(os.path.abspath(__file__)).parent.parent.parent
+            self.model_root = os.path.join(root_path, self.model_root)
         self.models = config.get("models")
         self.batch_size = config.get("batch_size")
         self.hf_model_repo = config.get("hf_model_repo")
