@@ -166,7 +166,7 @@ class AreaOfInterest:
 
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
-        if len(img_ids) == 0:
+        if len(img_ids) > 0:
             for i in tqdm(
                 range(0, len(img_ids), md.batch_size),
                 desc=f"Download and classify {len(img_ids)} images",
