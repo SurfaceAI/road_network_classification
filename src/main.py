@@ -71,7 +71,7 @@ def run_pipeline(args, root_path):
     db.execute_sql_query(str(const.SQL_AGGREGATE_ON_ROADS).format(2), aoi.query_params)
     db.execute_sql_query(str(const.SQL_AGGREGATE_ON_ROADS).format(3), aoi.query_params)
 
-    results_to_files(aoi, db, args.export_results, args.export_img_predictions)
+    results_to_files(aoi, db, args.export_results, args.export_img_predictions, cg.get("output_folder"))
 
 
 def get_config(root_path, configfile=None, config_dict=None):
@@ -90,6 +90,8 @@ def get_config(root_path, configfile=None, config_dict=None):
     with open(global_config_path, "r") as config_file:
         global_cg = json.load(config_file)
     cg = {**global_cg, **config_dict}
+    if not os.path.isabs(cg.get("output_folder")):
+        cg["output_folder"] = root_path / cg.get("output_folder")
     with open(credentials_path, "r") as cred_file:
         credentials = json.load(cred_file)
 
@@ -129,20 +131,20 @@ def setup_pipeline(cg, credentials):
     return surface_database, area_of_interest, mapillary_interface, model_interface
 
 
-def results_to_files(area_of_interest, surface_database, export_results, export_img_predictions):
+def results_to_files(area_of_interest, surface_database, export_results, export_img_predictions, output_folder):
     # write results to shapefile
     if export_results or export_img_predictions:
-        output_folder = root_path / "data" / "output"
+
         os.makedirs(output_folder, exist_ok=True)
         run = f"_{area_of_interest.run}" if area_of_interest.run else ""
 
     if export_results:
-        output_file = output_folder / f"{area_of_interest.name}{run}_surfaceai.shp"
+        output_file = os.path.join(output_folder, f"{area_of_interest.name}{run}_surfaceai.shp")
         logging.info(f"Write results to {output_file}.")
         area_of_interest.road_network_to_shapefile(surface_database, output_file, with_osm_groundtruth=True)
 
     if export_img_predictions:
-        output_file = output_folder / f"{area_of_interest.name}{run}_img_predictions.shp"
+        output_file = os.path.join(output_folder, f"{area_of_interest.name}{run}_img_predictions.shp")
         logging.info(f"Write image predictions to {output_file}.")
         area_of_interest.imgs_to_shapefile(surface_database, output_file)
 
