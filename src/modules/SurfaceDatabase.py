@@ -133,7 +133,7 @@ class SurfaceDatabase:
                 f"PBF file for {self.osm_region} does not exist. It will be downloaded from Geofabrik."
             )
             gfd = GeofabrikDownloader()
-            pbf_file = gfd.download_osm_data(
+            pbf_file = gfd.download_data(
                 self.osm_region,
                 "pbf",
                 download_dir=self.pbf_folder,
