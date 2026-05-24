@@ -145,6 +145,7 @@ class AreaOfInterest:
 
         db.execute_sql_query(const.SQL_PREP_MODEL_RESULT, self.query_params)
 
+        missing_images_count = 0
         for i in tqdm(
             range(0, len(img_ids), md.batch_size),
             desc=f"Download and classify {len(img_ids)} images",
@@ -155,12 +156,21 @@ class AreaOfInterest:
                 img_ids[i:j],
                 self.img_size,
             )
-            model_output = md.batch_classifications(img_data)
+            # filter out none here
+            successful_img_ids = []
+            successful_img_data = []
+
+            for idx, img in enumerate(img_data):
+                if img is not None:
+                    successful_img_ids.append(img_ids[i + idx])
+                    successful_img_data.append(img)
+
+            model_output = md.batch_classifications(successful_img_data)
 
             # add img_id to model_output
             # start = time.time()
             value_list = [
-                [img_id] + mo for img_id, mo in zip(img_ids[i:j], model_output)
+                [img_id] + mo for img_id, mo in zip(successful_img_ids, model_output)
             ]
             header = [
                 "img_id",
@@ -172,7 +182,12 @@ class AreaOfInterest:
             ]
             db.add_rows_to_table(f"{self.name}_img_classifications", header, value_list)
             # print(f"db insert {time.time() - start}")
-
+            failed_count = len(img_ids[i:j]) - len(successful_img_data)
+            if failed_count > 0:
+                logging.warning(f"Failed to download {failed_count} images in batch {i // md.batch_size + 1}")
+                missing_images_count += failed_count
+        if missing_images_count > 0:
+            logging.info(f"Failed to download {missing_images_count} images in total")
 
     def imgs_to_shapefile(self, db, output_path):
         query = f"""
