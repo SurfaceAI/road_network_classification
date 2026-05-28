@@ -175,5 +175,5 @@ class MapillaryInterface:
                 img = self.query_img(img_id, img_size)
                 imgs.append(img)
 
-        imgs = [item for item in imgs if item is not None]
+        #imgs = [item for item in imgs if item is not None]
         return imgs
